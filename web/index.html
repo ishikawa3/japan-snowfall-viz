@@ -1,0 +1,413 @@
+<title>日本の豪雪地帯マップ(2016年度)</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link
+  href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
+  rel="stylesheet"
+/>
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<style>
+  :root {
+    --surface-1: #fcfcfb;
+    --page-plane: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --border-hairline: rgba(11, 11, 11, 0.1);
+    --gosetsu: #86b6ef; /* 豪雪地帯（区分1） sequential step 250 */
+    --tokubetsu: #1c5cab; /* 特別豪雪地帯（区分2） sequential step 550 */
+    --gosetsu-line: #5598e7;
+    --tokubetsu-line: #104281;
+    --hover-outline: #0b0b0b;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
+      "Yu Gothic", sans-serif;
+    color: var(--text-primary);
+    background: var(--page-plane);
+  }
+
+  #map {
+    position: absolute;
+    inset: 0;
+  }
+
+  .panel {
+    position: absolute;
+    z-index: 2;
+    background: var(--surface-1);
+    border: 1px solid var(--border-hairline);
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(11, 11, 11, 0.12);
+  }
+
+  #title-panel {
+    top: 12px;
+    left: 12px;
+    padding: 12px 16px;
+    max-width: 320px;
+  }
+
+  #title-panel h1 {
+    margin: 0 0 2px;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  #title-panel p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  #legend-panel {
+    bottom: 28px;
+    left: 12px;
+    padding: 10px 14px;
+    font-size: 12px;
+  }
+
+  #legend-panel .legend-title {
+    font-weight: 700;
+    font-size: 12px;
+    margin-bottom: 6px;
+    color: var(--text-primary);
+  }
+
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+  }
+
+  .legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    flex: none;
+    border: 1px solid var(--border-hairline);
+  }
+
+  .legend-row span.label {
+    color: var(--text-primary);
+  }
+
+  #source-panel {
+    bottom: 8px;
+    right: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: rgba(252, 252, 251, 0.9);
+    box-shadow: none;
+    border-radius: 6px;
+  }
+
+  #source-panel a {
+    color: var(--text-secondary);
+    text-decoration: underline;
+  }
+
+  #source-panel a:hover {
+    color: var(--text-primary);
+  }
+
+  .maplibregl-popup-content {
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
+      "Yu Gothic", sans-serif;
+    padding: 12px 14px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(11, 11, 11, 0.18);
+  }
+
+  .popup-pref {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+  }
+
+  .popup-city {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+  }
+
+  .popup-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    color: #ffffff;
+    margin-bottom: 6px;
+  }
+
+  .popup-note {
+    font-size: 11px;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-hairline);
+    margin-top: 6px;
+    padding-top: 6px;
+    line-height: 1.5;
+  }
+
+  #loading {
+    position: absolute;
+    z-index: 3;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 13px;
+    color: var(--text-secondary);
+    background: var(--surface-1);
+    border: 1px solid var(--border-hairline);
+    border-radius: 8px;
+    padding: 10px 16px;
+  }
+
+  @media (max-width: 640px) {
+    #title-panel {
+      max-width: calc(100% - 24px);
+    }
+    #legend-panel {
+      bottom: 60px;
+    }
+  }
+</style>
+
+<div id="map"></div>
+
+<div id="title-panel" class="panel">
+  <h1>日本の豪雪地帯マップ(2016年度)</h1>
+  <p>
+    国土数値情報「豪雪地帯データ」(A22-2016)をもとにした、豪雪地帯・特別豪雪地帯の指定区域の可視化です。
+  </p>
+</div>
+
+<div id="legend-panel" class="panel">
+  <div class="legend-title">凡例(豪雪区分)</div>
+  <div class="legend-row">
+    <span class="legend-swatch" style="background: var(--gosetsu)"></span>
+    <span class="label">豪雪地帯</span>
+  </div>
+  <div class="legend-row">
+    <span class="legend-swatch" style="background: var(--tokubetsu)"></span>
+    <span class="label">特別豪雪地帯</span>
+  </div>
+</div>
+
+<div id="source-panel" class="panel">
+  出典: <a
+    href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-2016.html"
+    target="_blank"
+    rel="noopener"
+  >国土数値情報(豪雪地帯データ)国土交通省</a>
+</div>
+
+<div id="loading">地図データを読み込み中...</div>
+
+<script>
+  const map = new maplibregl.Map({
+    container: "map",
+    style: {
+      version: 8,
+      sources: {
+        gsi_pale: {
+          type: "raster",
+          tiles: [
+            "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png",
+          ],
+          tileSize: 256,
+          minzoom: 0,
+          maxzoom: 18,
+          attribution:
+            '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>',
+        },
+      },
+      layers: [
+        {
+          id: "gsi_pale_layer",
+          type: "raster",
+          source: "gsi_pale",
+        },
+      ],
+    },
+    center: [138, 39],
+    zoom: 4.5,
+    minZoom: 3,
+    maxZoom: 12,
+  });
+
+  map.addControl(new maplibregl.NavigationControl(), "top-right");
+
+  const KUBUN_LABEL = {
+    1: "豪雪地帯",
+    2: "特別豪雪地帯",
+    "1": "豪雪地帯",
+    "2": "特別豪雪地帯",
+  };
+
+  const KUBUN_COLOR = {
+    1: "#86b6ef",
+    2: "#1c5cab",
+    "1": "#86b6ef",
+    "2": "#1c5cab",
+  };
+
+  let hoveredFeatureId = null;
+
+  map.on("load", () => {
+    map.addSource("gosetsu", {
+      type: "geojson",
+      data: "data/gosetsu.geojson",
+      generateId: true,
+    });
+
+    map.addLayer({
+      id: "gosetsu-fill",
+      type: "fill",
+      source: "gosetsu",
+      paint: {
+        "fill-color": [
+          "match",
+          ["to-string", ["get", "A22_009"]],
+          "2",
+          "#1c5cab",
+          "1",
+          "#86b6ef",
+          /* other */ "#c3c2b7",
+        ],
+        "fill-opacity": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          0.8,
+          0.58,
+        ],
+      },
+    });
+
+    map.addLayer({
+      id: "gosetsu-line",
+      type: "line",
+      source: "gosetsu",
+      paint: {
+        "line-color": [
+          "match",
+          ["to-string", ["get", "A22_009"]],
+          "2",
+          "#104281",
+          "1",
+          "#5598e7",
+          /* other */ "#898781",
+        ],
+        "line-width": 0.6,
+        "line-opacity": 0.9,
+      },
+    });
+
+    map.addLayer({
+      id: "gosetsu-hover-outline",
+      type: "line",
+      source: "gosetsu",
+      paint: {
+        "line-color": "#0b0b0b",
+        "line-width": [
+          "case",
+          ["boolean", ["feature-state", "hover"], false],
+          1.6,
+          0,
+        ],
+        "line-opacity": 0.7,
+      },
+    });
+
+    document.getElementById("loading").remove();
+
+    map.on("mousemove", "gosetsu-fill", (e) => {
+      if (!e.features || e.features.length === 0) return;
+      map.getCanvas().style.cursor = "pointer";
+      const id = e.features[0].id;
+      if (hoveredFeatureId !== null && hoveredFeatureId !== id) {
+        map.setFeatureState(
+          { source: "gosetsu", id: hoveredFeatureId },
+          { hover: false }
+        );
+      }
+      hoveredFeatureId = id;
+      map.setFeatureState({ source: "gosetsu", id }, { hover: true });
+    });
+
+    map.on("mouseleave", "gosetsu-fill", () => {
+      map.getCanvas().style.cursor = "";
+      if (hoveredFeatureId !== null) {
+        map.setFeatureState(
+          { source: "gosetsu", id: hoveredFeatureId },
+          { hover: false }
+        );
+      }
+      hoveredFeatureId = null;
+    });
+
+    const popup = new maplibregl.Popup({
+      closeButton: true,
+      closeOnClick: true,
+      maxWidth: "280px",
+    });
+
+    map.on("click", "gosetsu-fill", (e) => {
+      if (!e.features || e.features.length === 0) return;
+      const props = e.features[0].properties;
+
+      const pref = props.A22_003 || "";
+      const city = props.A22_007 || props.A22_006 || "";
+      const kubunRaw = props.A22_009;
+      const kubunLabel = KUBUN_LABEL[kubunRaw] || "不明";
+      const badgeColor = KUBUN_COLOR[kubunRaw] || "#898781";
+      const note = props.A22_008;
+
+      const wrapper = document.createElement("div");
+
+      const prefEl = document.createElement("div");
+      prefEl.className = "popup-pref";
+      prefEl.textContent = pref;
+      wrapper.appendChild(prefEl);
+
+      const cityEl = document.createElement("div");
+      cityEl.className = "popup-city";
+      cityEl.textContent = city;
+      wrapper.appendChild(cityEl);
+
+      const badgeEl = document.createElement("div");
+      badgeEl.className = "popup-badge";
+      badgeEl.style.background = badgeColor;
+      badgeEl.textContent = kubunLabel;
+      wrapper.appendChild(badgeEl);
+
+      if (note) {
+        const noteEl = document.createElement("div");
+        noteEl.className = "popup-note";
+        noteEl.textContent = "旧市町村に関する備考: " + note;
+        wrapper.appendChild(noteEl);
+      }
+
+      popup.setLngLat(e.lngLat).setDOMContent(wrapper).addTo(map);
+    });
+  });
+
+  map.on("error", (e) => {
+    console.error("Map error:", e && e.error);
+  });
+</script>
