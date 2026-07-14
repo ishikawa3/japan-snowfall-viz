@@ -821,6 +821,7 @@
         datasetArea: "豪雪地帯データ(A22-2016)",
         datasetMet: "豪雪地帯データ(気象データ等)(A22-m-14)",
         org: "国土交通省",
+        gsiTiles: "地理院タイル",
       },
       loading: { text: "地図データを読み込み中..." },
       lang: { buttonAria: "言語を選択" },
@@ -884,6 +885,7 @@
         datasetMet:
           "Heavy Snowfall Area Data (Meteorological, etc.) (A22-m-14)",
         org: "Ministry of Land, Infrastructure, Transport and Tourism (MLIT), Japan",
+        gsiTiles: "GSI Tiles",
       },
       loading: { text: "Loading map data..." },
       lang: { buttonAria: "Select language" },
@@ -945,6 +947,7 @@
         datasetArea: "豪雪地带数据(A22-2016)",
         datasetMet: "豪雪地带数据(气象数据等)(A22-m-14)",
         org: "日本国土交通省",
+        gsiTiles: "国土地理院地图瓦片",
       },
       loading: { text: "地图数据加载中..." },
       lang: { buttonAria: "选择语言" },
@@ -1006,6 +1009,7 @@
         datasetArea: "호설지대 데이터(A22-2016)",
         datasetMet: "호설지대 데이터(기상 데이터 등)(A22-m-14)",
         org: "일본 국토교통성",
+        gsiTiles: "국토지리원 타일",
       },
       loading: { text: "지도 데이터를 불러오는 중..." },
       lang: { buttonAria: "언어 선택" },
@@ -1038,6 +1042,74 @@
     広島県: { en: "Hiroshima", "zh-Hans": "广岛县", ko: "히로시마현" },
     鳥取県: { en: "Tottori", "zh-Hans": "鸟取县", ko: "돗토리현" },
     島根県: { en: "Shimane", "zh-Hans": "岛根县", ko: "시마네현" },
+  };
+
+  // 観測機関名(station.org)の対訳。データのorg(約140種)は
+  // 「気象庁・国の出先機関(整備局・国道事務所等)」「都道府県」「市区町村」
+  // が混在する。機関名はローマ字表記が定まっているため辞書で翻訳し、
+  // 都道府県はPREF_NAMESを流用、市区町村(ローマ字化データなし)は
+  // 翻訳せず原文のまま表示する仕様(=辞書に載らないものは自動的に原文フォールバック)。
+  const ORG_NAMES = {
+    国土交通省気象庁: {
+      en: "Japan Meteorological Agency (MLIT)",
+      "zh-Hans": "日本气象厅(国土交通省)",
+      ko: "일본 기상청(국토교통성)",
+    },
+    国土交通省水管理・国土保全局: {
+      en: "Water and Disaster Management Bureau (MLIT)",
+      "zh-Hans": "水资源管理・国土保全局(国土交通省)",
+      ko: "수자원관리·국토보전국(국토교통성)",
+    },
+    北海道開発局: {
+      en: "Hokkaido Regional Development Bureau",
+      "zh-Hans": "北海道开发局",
+      ko: "홋카이도 개발국",
+    },
+    北陸地方整備局: {
+      en: "Hokuriku Regional Development Bureau",
+      "zh-Hans": "北陆地方整备局",
+      ko: "호쿠리쿠 지방정비국",
+    },
+    東北地方整備局: {
+      en: "Tohoku Regional Development Bureau",
+      "zh-Hans": "东北地方整备局",
+      ko: "도호쿠 지방정비국",
+    },
+    近畿地方整備局: {
+      en: "Kinki Regional Development Bureau",
+      "zh-Hans": "近畿地方整备局",
+      ko: "긴키 지방정비국",
+    },
+    中国地方整備局: {
+      en: "Chugoku Regional Development Bureau",
+      "zh-Hans": "中国地方整备局",
+      ko: "주고쿠 지방정비국",
+    },
+    中部地方整備局: {
+      en: "Chubu Regional Development Bureau",
+      "zh-Hans": "中部地方整备局",
+      ko: "주부 지방정비국",
+    },
+    関東地方整備局: {
+      en: "Kanto Regional Development Bureau",
+      "zh-Hans": "关东地方整备局",
+      ko: "간토 지방정비국",
+    },
+    長野国道事務所: {
+      en: "Nagano National Highway Office",
+      "zh-Hans": "长野国道事务所",
+      ko: "나가노 국도사무소",
+    },
+    宇都宮国道事務所: {
+      en: "Utsunomiya National Highway Office",
+      "zh-Hans": "宇都宫国道事务所",
+      ko: "우쓰노미야 국도사무소",
+    },
+    高崎河川国道事務所: {
+      en: "Takasaki River and National Highway Office",
+      "zh-Hans": "高崎河川国道事务所",
+      ko: "다카사키 하천국도사무소",
+    },
   };
 
   const LANG_META = {
@@ -1107,6 +1179,27 @@
     return (entry && entry[currentLang]) || ja;
   }
 
+  // 観測機関名(station.org)の翻訳。
+  // 1) ORG_NAMESに完全一致する機関名(気象庁・整備局・国道事務所等)はそれを使用
+  // 2) PREF_NAMESに完全一致する都道府県名は流用(enのみ「Prefecture」を付与、
+  //    北海道は例外でそのまま)
+  // 3) それ以外(市区町村名、「滋賀県長浜市」のような複合名など)は
+  //    翻訳データがないため原文(日本語)のままフォールバック
+  function orgName(ja) {
+    if (!ja) return ja;
+    if (currentLang === "ja") return ja;
+    const org = ORG_NAMES[ja];
+    if (org && org[currentLang]) return org[currentLang];
+    const pref = PREF_NAMES[ja];
+    if (pref && pref[currentLang]) {
+      if (currentLang === "en" && ja !== "北海道") {
+        return pref[currentLang] + " Prefecture";
+      }
+      return pref[currentLang];
+    }
+    return ja;
+  }
+
   function applyStaticI18n() {
     document.documentElement.lang = currentLang;
     document.title = t("meta.title");
@@ -1167,6 +1260,17 @@
     }
   }
 
+  // 地理院タイルの出典表記(MapLibreのAttributionControlはソース定義の
+  // 静的なattribution文字列をそのまま描画するため、言語切替のたびに
+  // DOM上のリンクテキストを直接書き換える。
+  function updateMapAttribution() {
+    document
+      .querySelectorAll('.maplibregl-ctrl-attrib a[href*="maps.gsi.go.jp"]')
+      .forEach((a) => {
+        a.textContent = t("source.gsiTiles");
+      });
+  }
+
   function setLang(lang) {
     if (!I18N[lang]) lang = "en";
     currentLang = lang;
@@ -1178,6 +1282,7 @@
     applyStaticI18n();
     updateLangSwitchUI();
     syncTitleHeight();
+    updateMapAttribution();
     if (typeof updateLegend === "function") updateLegend();
     if (typeof renderPrefList === "function") renderPrefList();
     if (typeof popup !== "undefined" && popup && popup.isOpen() && activePopupRefresh) {
@@ -1548,6 +1653,7 @@
 
     fetchPrefData();
     updateLegend();
+    updateMapAttribution();
   });
 
   map.on("error", (e) => {
@@ -1735,7 +1841,7 @@
     const table = document.createElement("table");
     table.className = "popup-stat-table";
     const rows = [
-      [t("popup.orgLabel"), p.org || t("popup.orgUnknown")],
+      [t("popup.orgLabel"), p.org ? orgName(p.org) : t("popup.orgUnknown")],
       [t("popup.avgLabel"), fmtCm(p.avg)],
       [t("popup.maxLabel"), fmtCm(p.max)],
       [
