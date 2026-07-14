@@ -1,6 +1,9 @@
-<title>日本の豪雪地帯マップ(2016年度)</title>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>日本の豪雪地帯マップ(2016年度)</title>
 <link
   href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
   rel="stylesheet"
@@ -27,6 +30,7 @@
     --station-3: #00844f; /* aqua ramp step 500 */
     --station-4: #00653a; /* aqua ramp step 600 (高い値) */
     --station-stroke: #fcfcfb;
+    --title-h: 60px;
   }
 
   * {
@@ -65,26 +69,160 @@
     max-width: 320px;
   }
 
+  #title-panel-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
   #title-panel h1 {
-    margin: 0 0 2px;
+    margin: 0;
     font-size: 16px;
     font-weight: 700;
     line-height: 1.35;
   }
 
   #title-panel p {
-    margin: 0;
+    margin: 8px 0 0;
     font-size: 12px;
     color: var(--text-secondary);
     line-height: 1.5;
   }
 
+  #title-toggle {
+    display: none;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-hairline);
+    border-radius: 8px;
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    font-size: 11px;
+    cursor: pointer;
+  }
+
+  /* ── 言語切替 ───────────────────────────────────── */
+  #lang-switch-panel {
+    position: absolute;
+    z-index: 4;
+    top: 12px;
+    right: 54px;
+  }
+
+  #lang-switch-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 36px;
+    padding: 0 10px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-hairline);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(11, 11, 11, 0.12);
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+
+  #lang-menu {
+    position: absolute;
+    z-index: 6;
+    top: 100%;
+    right: 0;
+    margin-top: 6px;
+    display: none;
+    min-width: 150px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-hairline);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(11, 11, 11, 0.18);
+    overflow: hidden;
+  }
+
+  #lang-menu.open {
+    display: block;
+  }
+
+  .lang-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 9px 12px;
+    font-size: 13px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-primary);
+    min-height: 38px;
+  }
+
+  .lang-option:hover {
+    background: rgba(11, 11, 11, 0.05);
+  }
+
+  .lang-option[aria-current="true"] {
+    font-weight: 700;
+    color: var(--tokubetsu);
+  }
+
+  /* ── レイヤー切替アイコンボタン(モバイルのみ表示) ───────────── */
+  #layer-toggle-btn {
+    display: none;
+    position: absolute;
+    z-index: 4;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-1);
+    border: 1px solid var(--border-hairline);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(11, 11, 11, 0.12);
+    font-size: 16px;
+    cursor: pointer;
+  }
+
   #legend-panel {
     bottom: 28px;
     left: 12px;
-    padding: 10px 14px;
     font-size: 12px;
     max-width: 220px;
+  }
+
+  #legend-panel-header {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  #legend-panel-header h2 {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 700;
+  }
+
+  #legend-panel-header .chevron {
+    font-size: 11px;
+    color: var(--text-secondary);
+    transition: transform 0.15s ease;
+  }
+
+  #legend-panel.collapsed #legend-panel-header .chevron {
+    transform: rotate(-90deg);
+  }
+
+  #legend-body {
+    padding: 10px 14px;
+  }
+
+  #legend-panel.collapsed #legend-body {
+    display: none;
   }
 
   .legend-block + .legend-block {
@@ -168,11 +306,14 @@
   }
 
   /* ── 都道府県別集計パネル ───────────────────────────── */
+  /* top はタイトルパネルの実測高さ(--title-h、JSで言語切替のたびに再計算)
+     に追随させる。言語によってタイトル・説明文の長さが変わり折り返し行数が
+     変わっても、下のパネルと重ならないようにするため。 */
   #pref-panel {
-    top: 176px;
+    top: calc(var(--title-h, 164px) + 16px);
     left: 12px;
     width: 260px;
-    max-height: calc(100vh - 500px);
+    max-height: calc(100vh - var(--title-h, 164px) - 340px);
     min-height: 42px;
     display: flex;
     flex-direction: column;
@@ -383,89 +524,774 @@
   }
 
   @media (max-width: 640px) {
+    /* タイトル: コンパクト化。説明はタップで開くドロップダウン表示に */
     #title-panel {
-      max-width: calc(100% - 24px);
+      padding: 8px 12px;
+      max-width: calc(100% - 96px);
     }
-    #legend-panel {
-      bottom: 60px;
+    #title-panel h1 {
+      font-size: 13.5px;
+      line-height: 1.3;
     }
-    #pref-panel {
-      width: calc(100% - 24px);
-      max-height: 40vh;
+    #title-panel p {
+      display: none;
     }
-    #layer-switch-panel {
-      width: 168px;
+    #title-panel.expanded {
+      z-index: 5;
+    }
+    #title-panel.expanded p {
+      display: block;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin: 6px 0 0;
+      padding: 10px 14px;
+      background: var(--surface-1);
+      border: 1px solid var(--border-hairline);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(11, 11, 11, 0.15);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    #title-toggle {
+      display: flex;
+    }
+
+    /* 言語切替・レイヤー切替アイコンは右上に縦に並べる */
+    #lang-switch-panel {
       top: 12px;
       right: 12px;
     }
+    #layer-toggle-btn {
+      display: flex;
+      top: 60px;
+      right: 12px;
+      width: 40px;
+      height: 40px;
+    }
+
+    /* ズームコントロールは非表示にしてスペースを確保(ピンチ操作は可能) */
+    .maplibregl-ctrl-top-right {
+      display: none;
+    }
+
+    /* レイヤー切替パネル: アイコンボタンで開閉するオーバーレイに */
+    #layer-switch-panel {
+      display: none;
+      top: 108px;
+      right: 12px;
+      width: 200px;
+      max-width: calc(100% - 24px);
+    }
+    #layer-switch-panel.open {
+      display: block;
+      z-index: 4;
+    }
+
+    /* 都道府県パネル: タイトル直下に配置し、デフォルト折りたたみ。
+       right を明示して、右上の言語・レイヤー切替ボタン列の下に
+       もぐり込まないようにする(left+width指定だと言語切替後の
+       ボタン幅変化に追随できないため)。 */
+    #pref-panel {
+      top: calc(var(--title-h, 60px) + 16px);
+      left: 12px;
+      right: 100px;
+      width: auto;
+      max-height: 40vh;
+    }
+
+    /* 凡例: 折りたたみヘッダーを表示し、デフォルト折りたたみ。
+       出典表記(#source-panel)は最大3行程度まで折り返しうるため、
+       重ならないよう十分な余白を確保する。 */
+    #legend-panel {
+      bottom: 84px;
+      left: 12px;
+      max-width: calc(100% - 24px);
+    }
+    #legend-panel-header {
+      display: flex;
+    }
+
+    #source-panel {
+      left: 12px;
+      right: 12px;
+      font-size: 10.5px;
+    }
+
+    /* タップターゲットの拡大 */
+    .switch-row {
+      min-height: 44px;
+    }
+    .switch-row input[type="checkbox"],
+    .switch-row input[type="radio"] {
+      width: 20px;
+      height: 20px;
+    }
+    #pref-panel-header,
+    #legend-panel-header {
+      min-height: 44px;
+    }
+    .pref-row {
+      min-height: 44px;
+      justify-content: center;
+    }
+    #lang-switch-btn {
+      min-height: 40px;
+    }
+    .lang-option {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .maplibregl-popup {
+      max-width: calc(100vw - 32px) !important;
+    }
   }
 </style>
+</head>
+<body>
 
 <div id="map"></div>
 
 <div id="title-panel" class="panel">
-  <h1>日本の豪雪地帯マップ(2016年度)</h1>
-  <p>
+  <div id="title-panel-row">
+    <h1 data-i18n="meta.title">日本の豪雪地帯マップ(2016年度)</h1>
+    <button
+      id="title-toggle"
+      type="button"
+      aria-expanded="false"
+      data-i18n-aria="title.toggleAria"
+    >▾</button>
+  </div>
+  <p data-i18n="meta.description">
     国土数値情報「豪雪地帯データ」(A22-2016)・「豪雪地帯データ(気象データ等)」(A22-m-14)をもとにした、豪雪地帯・特別豪雪地帯の指定区域と気象観測点の可視化です。
   </p>
 </div>
 
+<div id="lang-switch-panel">
+  <button
+    id="lang-switch-btn"
+    type="button"
+    aria-haspopup="true"
+    aria-expanded="false"
+    data-i18n-aria="lang.buttonAria"
+  >
+    <span aria-hidden="true">🌐</span><span id="lang-switch-code">JA</span>
+  </button>
+  <div id="lang-menu" role="menu">
+    <button class="lang-option" type="button" role="menuitem" data-lang="ja">日本語</button>
+    <button class="lang-option" type="button" role="menuitem" data-lang="en">English</button>
+    <button class="lang-option" type="button" role="menuitem" data-lang="zh-Hans">简体中文</button>
+    <button class="lang-option" type="button" role="menuitem" data-lang="ko">한국어</button>
+  </div>
+</div>
+
+<button
+  id="layer-toggle-btn"
+  type="button"
+  aria-expanded="false"
+  aria-controls="layer-switch-panel"
+  data-i18n-aria="layers.toggleAria"
+><span aria-hidden="true">🗺️</span></button>
+
 <div id="layer-switch-panel" class="panel">
-  <div class="section-title">指定区域</div>
+  <div class="section-title" data-i18n="layers.sectionArea">指定区域</div>
   <label class="switch-row">
     <input type="checkbox" id="toggle-gosetsu" checked />
-    <span>豪雪地帯ポリゴンを表示</span>
+    <span data-i18n="layers.togglePolygon">豪雪地帯ポリゴンを表示</span>
   </label>
 
-  <div class="section-title">観測点</div>
+  <div class="section-title" data-i18n="layers.sectionStation">観測点</div>
   <label class="switch-row">
     <input type="radio" name="station-mode" value="none" checked />
-    <span>なし</span>
+    <span data-i18n="layers.stationNone">なし</span>
   </label>
   <label class="switch-row">
     <input type="radio" name="station-mode" value="maxdepth" />
-    <span>最深積雪(累年平均)</span>
+    <span data-i18n="layers.stationMaxdepth">最深積雪(累年平均)</span>
   </label>
   <label class="switch-row">
     <input type="radio" name="station-mode" value="snowfall" />
-    <span>累計降雪量(累年平均)</span>
+    <span data-i18n="layers.stationSnowfall">累計降雪量(累年平均)</span>
   </label>
 </div>
 
 <div id="pref-panel" class="panel">
   <div id="pref-panel-header">
-    <h2>都道府県別 指定市区町村数</h2>
+    <h2 data-i18n="prefPanel.title">都道府県別 指定市区町村数</h2>
     <span class="chevron">▾</span>
   </div>
   <div id="pref-panel-body">
-    <div class="pref-hint">行をクリックすると地図がその都道府県へ移動します。</div>
+    <div class="pref-hint" data-i18n="prefPanel.hint">行をクリックすると地図がその都道府県へ移動します。</div>
     <div id="pref-list"></div>
   </div>
 </div>
 
 <div id="legend-panel" class="panel">
+  <div id="legend-panel-header">
+    <h2 data-i18n="legend.panelHeading">凡例</h2>
+    <span class="chevron">▾</span>
+  </div>
   <div id="legend-body"></div>
 </div>
 
 <div id="source-panel" class="panel">
-  出典:
+  <span data-i18n="source.label">出典:</span>
   <a
     href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-2016.html"
     target="_blank"
     rel="noopener"
+    data-i18n="source.datasetArea"
     >豪雪地帯データ(A22-2016)</a
   >・<a
     href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html"
     target="_blank"
     rel="noopener"
+    data-i18n="source.datasetMet"
     >豪雪地帯データ(気象データ等)(A22-m-14)</a
   >
-  国土交通省
+  <span data-i18n="source.org">国土交通省</span>
 </div>
 
-<div id="loading">地図データを読み込み中...</div>
+<div id="loading" data-i18n="loading.text">地図データを読み込み中...</div>
 
 <script>
+  // ══════════════════════════════════════════════════════════════
+  // 多言語対応(i18n)
+  // ══════════════════════════════════════════════════════════════
+  const I18N = {
+    ja: {
+      meta: {
+        title: "日本の豪雪地帯マップ(2016年度)",
+        description:
+          "国土数値情報「豪雪地帯データ」(A22-2016)・「豪雪地帯データ(気象データ等)」(A22-m-14)をもとにした、豪雪地帯・特別豪雪地帯の指定区域と気象観測点の可視化です。",
+      },
+      title: { toggleAria: "説明の表示・非表示を切り替え" },
+      layers: {
+        sectionArea: "指定区域",
+        togglePolygon: "豪雪地帯ポリゴンを表示",
+        sectionStation: "観測点",
+        stationNone: "なし",
+        stationMaxdepth: "最深積雪(累年平均)",
+        stationSnowfall: "累計降雪量(累年平均)",
+        toggleAria: "レイヤー切替を開く",
+      },
+      legend: {
+        panelHeading: "凡例",
+        polygonTitle: "凡例(豪雪区分)",
+        gosetsu: "豪雪地帯",
+        tokubetsu: "特別豪雪地帯",
+        stationTitle: (label) => `凡例(観測点・${label})`,
+        noLayer: "表示中のレイヤーはありません",
+        rangeFirst: (v, u) => `〜${v}${u}`,
+        rangeLast: (v, u) => `${v}${u}〜`,
+        rangeMid: (a, b, u) => `${a}〜${b}${u}`,
+      },
+      prefPanel: {
+        title: "都道府県別 指定市区町村数",
+        hint: "行をクリックすると地図がその都道府県へ移動します。",
+        cityCount: (n) => `${n} 市区町村`,
+        tokubetsuSub: (c, p) => `うち特別豪雪地帯を含む: ${c} (${p}%)`,
+        loadError: "集計データの読み込みに失敗しました。",
+      },
+      popup: {
+        kubunUnknown: "不明",
+        noteLabel: "旧市町村に関する備考: ",
+        stationTitleMaxdepth: "気象観測点(最深積雪)",
+        stationTitleSnowfall: "気象観測点(累計降雪量)",
+        nameUnknown: "(名称不明)",
+        orgLabel: "観測機関",
+        orgUnknown: "不明",
+        avgLabel: "累年平均",
+        maxLabel: "累年最大",
+        latestLabel: "最新年値",
+        latestWithYear: (y) => `最新年値(${y}年)`,
+        yearsLabel: "観測年数",
+        yearsUnit: (n) => `${n} 年`,
+        yearsUnknown: "不明",
+        dataNone: "データなし",
+        unitCm: "cm",
+      },
+      source: {
+        label: "出典:",
+        datasetArea: "豪雪地帯データ(A22-2016)",
+        datasetMet: "豪雪地帯データ(気象データ等)(A22-m-14)",
+        org: "国土交通省",
+      },
+      loading: { text: "地図データを読み込み中..." },
+      lang: { buttonAria: "言語を選択" },
+    },
+    en: {
+      meta: {
+        title: "Japan Heavy Snowfall Areas Map (FY2016)",
+        description:
+          'A visualization of designated Heavy Snowfall Areas, Special Heavy Snowfall Areas, and weather observation stations, based on the National Land Numerical Information "Heavy Snowfall Area Data" (A22-2016) and "Heavy Snowfall Area Data (Meteorological Data, etc.)" (A22-m-14).',
+      },
+      title: { toggleAria: "Show or hide the description" },
+      layers: {
+        sectionArea: "Designated Areas",
+        togglePolygon: "Show Heavy Snowfall Area polygons",
+        sectionStation: "Observation Stations",
+        stationNone: "None",
+        stationMaxdepth: "Max. Snow Depth (annual avg.)",
+        stationSnowfall: "Total Snowfall (annual avg.)",
+        toggleAria: "Open layer controls",
+      },
+      legend: {
+        panelHeading: "Legend",
+        polygonTitle: "Legend (Designation)",
+        gosetsu: "Heavy Snowfall Area",
+        tokubetsu: "Special Heavy Snowfall Area",
+        stationTitle: (label) => `Legend (Stations: ${label})`,
+        noLayer: "No layers are currently shown",
+        rangeFirst: (v, u) => `< ${v} ${u}`,
+        rangeLast: (v, u) => `≥ ${v} ${u}`,
+        rangeMid: (a, b, u) => `${a}–${b} ${u}`,
+      },
+      prefPanel: {
+        title: "Designated Municipalities by Prefecture",
+        hint: "Click a row to fly the map to that prefecture.",
+        cityCount: (n) => `${n} municipalities`,
+        tokubetsuSub: (c, p) =>
+          `Incl. Special Heavy Snowfall Area: ${c} (${p}%)`,
+        loadError: "Failed to load the summary data.",
+      },
+      popup: {
+        kubunUnknown: "Unknown",
+        noteLabel: "Note on former municipality: ",
+        stationTitleMaxdepth: "Weather Station (Max. Snow Depth)",
+        stationTitleSnowfall: "Weather Station (Total Snowfall)",
+        nameUnknown: "(Unnamed)",
+        orgLabel: "Operating Agency",
+        orgUnknown: "Unknown",
+        avgLabel: "Annual Average",
+        maxLabel: "Annual Max.",
+        latestLabel: "Latest Value",
+        latestWithYear: (y) => `Value in ${y}`,
+        yearsLabel: "Years of Record",
+        yearsUnit: (n) => `${n} years`,
+        yearsUnknown: "Unknown",
+        dataNone: "No data",
+        unitCm: "cm",
+      },
+      source: {
+        label: "Source:",
+        datasetArea: "Heavy Snowfall Area Data (A22-2016)",
+        datasetMet:
+          "Heavy Snowfall Area Data (Meteorological, etc.) (A22-m-14)",
+        org: "Ministry of Land, Infrastructure, Transport and Tourism (MLIT), Japan",
+      },
+      loading: { text: "Loading map data..." },
+      lang: { buttonAria: "Select language" },
+    },
+    "zh-Hans": {
+      meta: {
+        title: "日本豪雪地带地图(2016年度)",
+        description:
+          "基于日本国土数值信息「豪雪地带数据」(A22-2016)及「豪雪地带数据(气象数据等)」(A22-m-14)制作的豪雪地带、特别豪雪地带指定区域与气象观测点可视化地图。",
+      },
+      title: { toggleAria: "显示或隐藏说明" },
+      layers: {
+        sectionArea: "指定区域",
+        togglePolygon: "显示豪雪地带区域",
+        sectionStation: "观测点",
+        stationNone: "不显示",
+        stationMaxdepth: "最大积雪深度(历年平均)",
+        stationSnowfall: "累计降雪量(历年平均)",
+        toggleAria: "打开图层设置",
+      },
+      legend: {
+        panelHeading: "图例",
+        polygonTitle: "图例(豪雪等级)",
+        gosetsu: "豪雪地带",
+        tokubetsu: "特别豪雪地带",
+        stationTitle: (label) => `图例(观测点・${label})`,
+        noLayer: "当前未显示任何图层",
+        rangeFirst: (v, u) => `<${v}${u}`,
+        rangeLast: (v, u) => `≥${v}${u}`,
+        rangeMid: (a, b, u) => `${a}–${b}${u}`,
+      },
+      prefPanel: {
+        title: "各都道府县指定市区町村数",
+        hint: "点击一行可将地图跳转至该都道府县。",
+        cityCount: (n) => `${n} 个市区町村`,
+        tokubetsuSub: (c, p) => `其中含特别豪雪地带: ${c}个 (${p}%)`,
+        loadError: "汇总数据加载失败。",
+      },
+      popup: {
+        kubunUnknown: "未知",
+        noteLabel: "旧市町村备注: ",
+        stationTitleMaxdepth: "气象观测点(最大积雪深度)",
+        stationTitleSnowfall: "气象观测点(累计降雪量)",
+        nameUnknown: "(名称不详)",
+        orgLabel: "观测机构",
+        orgUnknown: "未知",
+        avgLabel: "历年平均",
+        maxLabel: "历年最大",
+        latestLabel: "最新数值",
+        latestWithYear: (y) => `最新数值(${y}年)`,
+        yearsLabel: "观测年数",
+        yearsUnit: (n) => `${n} 年`,
+        yearsUnknown: "未知",
+        dataNone: "无数据",
+        unitCm: "cm",
+      },
+      source: {
+        label: "出处:",
+        datasetArea: "豪雪地带数据(A22-2016)",
+        datasetMet: "豪雪地带数据(气象数据等)(A22-m-14)",
+        org: "日本国土交通省",
+      },
+      loading: { text: "地图数据加载中..." },
+      lang: { buttonAria: "选择语言" },
+    },
+    ko: {
+      meta: {
+        title: "일본 호설지대 지도(2016년도)",
+        description:
+          "국토수치정보 「호설지대 데이터」(A22-2016) 및 「호설지대 데이터(기상 데이터 등)」(A22-m-14)를 바탕으로 한 호설지대·특별호설지대 지정구역과 기상관측점 시각화입니다.",
+      },
+      title: { toggleAria: "설명 표시·숨기기 전환" },
+      layers: {
+        sectionArea: "지정구역",
+        togglePolygon: "호설지대 폴리곤 표시",
+        sectionStation: "관측점",
+        stationNone: "없음",
+        stationMaxdepth: "최심적설(누년평균)",
+        stationSnowfall: "누계강설량(누년평균)",
+        toggleAria: "레이어 설정 열기",
+      },
+      legend: {
+        panelHeading: "범례",
+        polygonTitle: "범례(호설 구분)",
+        gosetsu: "호설지대",
+        tokubetsu: "특별호설지대",
+        stationTitle: (label) => `범례(관측점・${label})`,
+        noLayer: "표시 중인 레이어가 없습니다",
+        rangeFirst: (v, u) => `${v}${u} 미만`,
+        rangeLast: (v, u) => `${v}${u} 이상`,
+        rangeMid: (a, b, u) => `${a}–${b}${u}`,
+      },
+      prefPanel: {
+        title: "도도부현별 지정 시구정촌 수",
+        hint: "행을 클릭하면 지도가 해당 도도부현으로 이동합니다.",
+        cityCount: (n) => `${n}개 시정촌`,
+        tokubetsuSub: (c, p) => `그중 특별호설지대 포함: ${c}개 (${p}%)`,
+        loadError: "집계 데이터를 불러오지 못했습니다.",
+      },
+      popup: {
+        kubunUnknown: "불명",
+        noteLabel: "구 시정촌 관련 비고: ",
+        stationTitleMaxdepth: "기상관측점(최심적설)",
+        stationTitleSnowfall: "기상관측점(누계강설량)",
+        nameUnknown: "(명칭 불명)",
+        orgLabel: "관측기관",
+        orgUnknown: "불명",
+        avgLabel: "누년평균",
+        maxLabel: "누년최대",
+        latestLabel: "최신 연도 값",
+        latestWithYear: (y) => `최신 연도 값(${y}년)`,
+        yearsLabel: "관측 연수",
+        yearsUnit: (n) => `${n}년`,
+        yearsUnknown: "불명",
+        dataNone: "데이터 없음",
+        unitCm: "cm",
+      },
+      source: {
+        label: "출처:",
+        datasetArea: "호설지대 데이터(A22-2016)",
+        datasetMet: "호설지대 데이터(기상 데이터 등)(A22-m-14)",
+        org: "일본 국토교통성",
+      },
+      loading: { text: "지도 데이터를 불러오는 중..." },
+      lang: { buttonAria: "언어 선택" },
+    },
+  };
+
+  // 都道府県名の対訳(データのA22_003は日本語)
+  const PREF_NAMES = {
+    北海道: { en: "Hokkaido", "zh-Hans": "北海道", ko: "홋카이도" },
+    青森県: { en: "Aomori", "zh-Hans": "青森县", ko: "아오모리현" },
+    岩手県: { en: "Iwate", "zh-Hans": "岩手县", ko: "이와테현" },
+    宮城県: { en: "Miyagi", "zh-Hans": "宫城县", ko: "미야기현" },
+    秋田県: { en: "Akita", "zh-Hans": "秋田县", ko: "아키타현" },
+    山形県: { en: "Yamagata", "zh-Hans": "山形县", ko: "야마가타현" },
+    福島県: { en: "Fukushima", "zh-Hans": "福岛县", ko: "후쿠시마현" },
+    栃木県: { en: "Tochigi", "zh-Hans": "枥木县", ko: "도치기현" },
+    群馬県: { en: "Gunma", "zh-Hans": "群马县", ko: "군마현" },
+    新潟県: { en: "Niigata", "zh-Hans": "新潟县", ko: "니가타현" },
+    富山県: { en: "Toyama", "zh-Hans": "富山县", ko: "도야마현" },
+    石川県: { en: "Ishikawa", "zh-Hans": "石川县", ko: "이시카와현" },
+    福井県: { en: "Fukui", "zh-Hans": "福井县", ko: "후쿠이현" },
+    山梨県: { en: "Yamanashi", "zh-Hans": "山梨县", ko: "야마나시현" },
+    長野県: { en: "Nagano", "zh-Hans": "长野县", ko: "나가노현" },
+    岐阜県: { en: "Gifu", "zh-Hans": "岐阜县", ko: "기후현" },
+    静岡県: { en: "Shizuoka", "zh-Hans": "静冈县", ko: "시즈오카현" },
+    滋賀県: { en: "Shiga", "zh-Hans": "滋贺县", ko: "시가현" },
+    京都府: { en: "Kyoto", "zh-Hans": "京都府", ko: "교토부" },
+    兵庫県: { en: "Hyogo", "zh-Hans": "兵库县", ko: "효고현" },
+    岡山県: { en: "Okayama", "zh-Hans": "冈山县", ko: "오카야마현" },
+    広島県: { en: "Hiroshima", "zh-Hans": "广岛县", ko: "히로시마현" },
+    鳥取県: { en: "Tottori", "zh-Hans": "鸟取县", ko: "돗토리현" },
+    島根県: { en: "Shimane", "zh-Hans": "岛根县", ko: "시마네현" },
+  };
+
+  const LANG_META = {
+    ja: { native: "日本語", short: "JA" },
+    en: { native: "English", short: "EN" },
+    "zh-Hans": { native: "简体中文", short: "中" },
+    ko: { native: "한국어", short: "KO" },
+  };
+
+  const LOCALE_MAP = {
+    ja: "ja-JP",
+    en: "en-US",
+    "zh-Hans": "zh-Hans-CN",
+    ko: "ko-KR",
+  };
+
+  function normalizeLang(raw) {
+    if (!raw) return null;
+    const s = String(raw).toLowerCase();
+    if (s.startsWith("ja")) return "ja";
+    if (s.startsWith("zh")) return "zh-Hans";
+    if (s.startsWith("ko")) return "ko";
+    if (s.startsWith("en")) return "en";
+    return null;
+  }
+
+  function detectLang() {
+    const params = new URLSearchParams(location.search);
+    const fromUrl = normalizeLang(params.get("lang"));
+    if (fromUrl) {
+      try {
+        localStorage.setItem("lang", fromUrl);
+      } catch (e) {
+        /* localStorage unavailable: ignore */
+      }
+      return fromUrl;
+    }
+    let stored = null;
+    try {
+      stored = normalizeLang(localStorage.getItem("lang"));
+    } catch (e) {
+      stored = null;
+    }
+    if (stored) return stored;
+    const fromNav = normalizeLang(
+      (navigator.languages && navigator.languages[0]) || navigator.language
+    );
+    return fromNav || "en";
+  }
+
+  function getPath(obj, path) {
+    return path
+      .split(".")
+      .reduce((acc, k) => (acc && acc[k] !== undefined ? acc[k] : undefined), obj);
+  }
+
+  function t(key, ...args) {
+    let val = getPath(I18N[currentLang], key);
+    if (val === undefined) val = getPath(I18N.en, key);
+    if (val === undefined) return key;
+    return typeof val === "function" ? val(...args) : val;
+  }
+
+  function prefName(ja) {
+    if (currentLang === "ja") return ja;
+    const entry = PREF_NAMES[ja];
+    return (entry && entry[currentLang]) || ja;
+  }
+
+  function applyStaticI18n() {
+    document.documentElement.lang = currentLang;
+    document.title = t("meta.title");
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      const val = t(el.getAttribute("data-i18n"));
+      if (typeof val === "string") el.textContent = val;
+    });
+    document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+      const val = t(el.getAttribute("data-i18n-aria"));
+      if (typeof val === "string") el.setAttribute("aria-label", val);
+    });
+  }
+
+  function updateLangSwitchUI() {
+    const codeEl = document.getElementById("lang-switch-code");
+    if (codeEl) codeEl.textContent = LANG_META[currentLang].short;
+    document.querySelectorAll(".lang-option").forEach((btn) => {
+      btn.setAttribute(
+        "aria-current",
+        btn.dataset.lang === currentLang ? "true" : "false"
+      );
+    });
+  }
+
+  function syncTitleHeight() {
+    const el = document.getElementById("title-panel");
+    if (!el) return;
+    document.documentElement.style.setProperty("--title-h", el.offsetHeight + "px");
+  }
+
+  function isMobileView() {
+    return window.innerWidth <= 640;
+  }
+
+  // モバイル幅では画面が狭く、都道府県パネル・凡例・レイヤー切替・
+  // タイトルの説明・言語メニューを同時に開くと重なりうる。そのため
+  // 「ひとつ開いたら他は閉じる」の排他制御を行い、重なりを構造的に防ぐ。
+  function closeMobileOverlays(except) {
+    if (!isMobileView()) return;
+    if (except !== "title") {
+      document.getElementById("title-panel").classList.remove("expanded");
+      document.getElementById("title-toggle").setAttribute("aria-expanded", "false");
+      document.getElementById("title-toggle").textContent = "▾";
+    }
+    if (except !== "pref") {
+      document.getElementById("pref-panel").classList.add("collapsed");
+    }
+    if (except !== "legend") {
+      document.getElementById("legend-panel").classList.add("collapsed");
+    }
+    if (except !== "layer") {
+      document.getElementById("layer-switch-panel").classList.remove("open");
+      document.getElementById("layer-toggle-btn").setAttribute("aria-expanded", "false");
+    }
+    if (except !== "lang") {
+      document.getElementById("lang-menu").classList.remove("open");
+      document.getElementById("lang-switch-btn").setAttribute("aria-expanded", "false");
+    }
+  }
+
+  function setLang(lang) {
+    if (!I18N[lang]) lang = "en";
+    currentLang = lang;
+    try {
+      localStorage.setItem("lang", lang);
+    } catch (e) {
+      /* ignore */
+    }
+    applyStaticI18n();
+    updateLangSwitchUI();
+    syncTitleHeight();
+    if (typeof updateLegend === "function") updateLegend();
+    if (typeof renderPrefList === "function") renderPrefList();
+    if (typeof popup !== "undefined" && popup && popup.isOpen() && activePopupRefresh) {
+      activePopupRefresh();
+    }
+  }
+
+  let currentLang = detectLang();
+  let wasMobile = isMobileView();
+  let activePopupRefresh = null;
+  let popup;
+
+  applyStaticI18n();
+  updateLangSwitchUI();
+  if (wasMobile) {
+    document.getElementById("pref-panel").classList.add("collapsed");
+    document.getElementById("legend-panel").classList.add("collapsed");
+  }
+  syncTitleHeight();
+
+  // ── 静的コントロールの配線 ─────────────────────────────
+  // (モバイルでは開閉式のパネル/メニューが複数あるため、ひとつを開く前に
+  //  closeMobileOverlays() で他を閉じ、パネル同士が重ならないようにする)
+  document.getElementById("title-toggle").addEventListener("click", () => {
+    const panel = document.getElementById("title-panel");
+    const btn = document.getElementById("title-toggle");
+    const willExpand = !panel.classList.contains("expanded");
+    if (willExpand) closeMobileOverlays("title");
+    panel.classList.toggle("expanded", willExpand);
+    btn.setAttribute("aria-expanded", String(willExpand));
+    btn.textContent = willExpand ? "▴" : "▾";
+  });
+
+  document.getElementById("layer-toggle-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const panel = document.getElementById("layer-switch-panel");
+    const btn = document.getElementById("layer-toggle-btn");
+    const willOpen = !panel.classList.contains("open");
+    if (willOpen) closeMobileOverlays("layer");
+    panel.classList.toggle("open", willOpen);
+    btn.setAttribute("aria-expanded", String(willOpen));
+  });
+
+  document.getElementById("lang-switch-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const menu = document.getElementById("lang-menu");
+    const btn = document.getElementById("lang-switch-btn");
+    const willOpen = !menu.classList.contains("open");
+    if (willOpen) closeMobileOverlays("lang");
+    menu.classList.toggle("open", willOpen);
+    btn.setAttribute("aria-expanded", String(willOpen));
+  });
+
+  document.querySelectorAll(".lang-option").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setLang(btn.dataset.lang);
+      document.getElementById("lang-menu").classList.remove("open");
+      document.getElementById("lang-switch-btn").setAttribute("aria-expanded", "false");
+    });
+  });
+
+  document.addEventListener("click", (e) => {
+    const layerPanel = document.getElementById("layer-switch-panel");
+    const layerBtn = document.getElementById("layer-toggle-btn");
+    if (
+      layerPanel.classList.contains("open") &&
+      !layerPanel.contains(e.target) &&
+      !layerBtn.contains(e.target)
+    ) {
+      layerPanel.classList.remove("open");
+      layerBtn.setAttribute("aria-expanded", "false");
+    }
+    const langMenu = document.getElementById("lang-menu");
+    const langBtn = document.getElementById("lang-switch-btn");
+    if (
+      langMenu.classList.contains("open") &&
+      !langMenu.contains(e.target) &&
+      !langBtn.contains(e.target)
+    ) {
+      langMenu.classList.remove("open");
+      langBtn.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    syncTitleHeight();
+    const nowMobile = isMobileView();
+    if (nowMobile && !wasMobile) {
+      document.getElementById("pref-panel").classList.add("collapsed");
+      document.getElementById("legend-panel").classList.add("collapsed");
+      document.getElementById("title-panel").classList.remove("expanded");
+      document.getElementById("layer-switch-panel").classList.remove("open");
+      document.getElementById("lang-menu").classList.remove("open");
+    }
+    wasMobile = nowMobile;
+  });
+
+  document.getElementById("pref-panel-header").addEventListener("click", () => {
+    const panel = document.getElementById("pref-panel");
+    const willExpand = panel.classList.contains("collapsed");
+    if (willExpand) closeMobileOverlays("pref");
+    panel.classList.toggle("collapsed");
+  });
+
+  document.getElementById("legend-panel-header").addEventListener("click", () => {
+    const panel = document.getElementById("legend-panel");
+    const willExpand = panel.classList.contains("collapsed");
+    if (willExpand) closeMobileOverlays("legend");
+    panel.classList.toggle("collapsed");
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // 地図本体
+  // ══════════════════════════════════════════════════════════════
   const map = new maplibregl.Map({
     container: "map",
     style: {
@@ -499,13 +1325,6 @@
 
   map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-  const KUBUN_LABEL = {
-    1: "豪雪地帯",
-    2: "特別豪雪地帯",
-    "1": "豪雪地帯",
-    "2": "特別豪雪地帯",
-  };
-
   const KUBUN_COLOR = {
     1: "#86b6ef",
     2: "#1c5cab",
@@ -524,23 +1343,23 @@
       source: "stations-maxdepth",
       layer: "stations-maxdepth-circle",
       file: "data/stations_maxdepth.geojson",
-      label: "最深積雪(累年平均)",
+      labelKey: "layers.stationMaxdepth",
       unit: "cm",
       // avg(cm)の分布(p90≈224, p99≈422)にもとづく区分。範囲外はclamp。
       domain: [0, 50, 150, 350],
       radii: [3, 5, 8, 12],
-      popupTitle: "気象観測点(最深積雪)",
+      popupTitleKey: "popup.stationTitleMaxdepth",
     },
     snowfall: {
       source: "stations-snowfall",
       layer: "stations-snowfall-circle",
       file: "data/stations_snowfall.geojson",
-      label: "累計降雪量(累年平均)",
+      labelKey: "layers.stationSnowfall",
       unit: "cm",
       // avg(cm)の分布(p90≈1144, p99≈2024)にもとづく区分。範囲外はclamp。
       domain: [0, 300, 800, 2000],
       radii: [3, 5, 8, 12],
-      popupTitle: "気象観測点(累計降雪量)",
+      popupTitleKey: "popup.stationTitleSnowfall",
     },
   };
 
@@ -573,6 +1392,7 @@
 
   let hoveredFeatureId = null;
   let prefFeatureIndex = null; // { prefName: [feature, ...] }
+  let prefSummaryCache = null;
 
   map.on("load", () => {
     // ── 指定区域ポリゴン ───────────────────────────────
@@ -702,115 +1522,31 @@
       });
     }
 
-    const popup = new maplibregl.Popup({
+    popup = new maplibregl.Popup({
       closeButton: true,
       closeOnClick: true,
-      maxWidth: "280px",
+      maxWidth: popupMaxWidth(),
+    });
+    popup.on("close", () => {
+      activePopupRefresh = null;
     });
 
     // ── クリック(ポリゴン) ───────────────────────────────
     map.on("click", "gosetsu-fill", (e) => {
       if (!e.features || e.features.length === 0) return;
-      const props = e.features[0].properties;
-
-      const pref = props.A22_003 || "";
-      const city = props.A22_007 || props.A22_006 || "";
-      const kubunRaw = props.A22_009;
-      const kubunLabel = KUBUN_LABEL[kubunRaw] || "不明";
-      const badgeColor = KUBUN_COLOR[kubunRaw] || "#898781";
-      const note = props.A22_008;
-
-      const wrapper = document.createElement("div");
-
-      const prefEl = document.createElement("div");
-      prefEl.className = "popup-pref";
-      prefEl.textContent = pref;
-      wrapper.appendChild(prefEl);
-
-      const cityEl = document.createElement("div");
-      cityEl.className = "popup-city";
-      cityEl.textContent = city;
-      wrapper.appendChild(cityEl);
-
-      const badgeEl = document.createElement("div");
-      badgeEl.className = "popup-badge";
-      badgeEl.style.background = badgeColor;
-      badgeEl.textContent = kubunLabel;
-      wrapper.appendChild(badgeEl);
-
-      if (note) {
-        const noteEl = document.createElement("div");
-        noteEl.className = "popup-note";
-        noteEl.textContent = "旧市町村に関する備考: " + note;
-        wrapper.appendChild(noteEl);
-      }
-
-      popup.setLngLat(e.lngLat).setDOMContent(wrapper).addTo(map);
+      showPolygonPopup(e.features[0], e.lngLat);
     });
 
     // ── クリック(観測点) ───────────────────────────────
-    function fmtCm(v) {
-      return v === null || v === undefined
-        ? "データなし"
-        : v.toLocaleString("ja-JP") + " cm";
-    }
-
     for (const key of Object.keys(STATION_LAYERS)) {
       const def = STATION_LAYERS[key];
       map.on("click", def.layer, (e) => {
         if (!e.features || e.features.length === 0) return;
-        const p = e.features[0].properties;
-
-        const wrapper = document.createElement("div");
-
-        const titleEl = document.createElement("div");
-        titleEl.className = "popup-pref";
-        titleEl.textContent = def.popupTitle;
-        wrapper.appendChild(titleEl);
-
-        const nameEl = document.createElement("div");
-        nameEl.className = "popup-station-name";
-        nameEl.textContent = p.name || "(名称不明)";
-        wrapper.appendChild(nameEl);
-
-        if (p.addr) {
-          const addrEl = document.createElement("div");
-          addrEl.className = "popup-station-addr";
-          addrEl.textContent = p.addr;
-          wrapper.appendChild(addrEl);
-        }
-
-        const table = document.createElement("table");
-        table.className = "popup-stat-table";
-        const rows = [
-          ["観測機関", p.org || "不明"],
-          ["累年平均", fmtCm(p.avg)],
-          ["累年最大", fmtCm(p.max)],
-          [
-            p.latestYear ? `最新年値(${p.latestYear}年)` : "最新年値",
-            fmtCm(p.latest),
-          ],
-          ["観測年数", p.years != null ? p.years + " 年" : "不明"],
-        ];
-        for (const [k, v] of rows) {
-          const tr = document.createElement("tr");
-          const tdK = document.createElement("td");
-          tdK.className = "k";
-          tdK.textContent = k;
-          const tdV = document.createElement("td");
-          tdV.className = "v";
-          tdV.textContent = v;
-          tr.appendChild(tdK);
-          tr.appendChild(tdV);
-          table.appendChild(tr);
-        }
-        wrapper.appendChild(table);
-
-        popup.setLngLat(e.lngLat).setDOMContent(wrapper).addTo(map);
+        showStationPopup(key, e.features[0], e.lngLat);
       });
     }
 
-    initPrefPanel();
+    fetchPrefData();
     updateLegend();
   });
 
@@ -850,9 +1586,9 @@
   }
 
   function fmtDomainLabel(domain, i, unit) {
-    if (i === 0) return `〜${domain[1]}${unit}`;
-    if (i === domain.length - 1) return `${domain[i]}${unit}〜`;
-    return `${domain[i]}〜${domain[i + 1]}${unit}`;
+    if (i === 0) return t("legend.rangeFirst", domain[1], unit);
+    if (i === domain.length - 1) return t("legend.rangeLast", domain[i], unit);
+    return t("legend.rangeMid", domain[i], domain[i + 1], unit);
   }
 
   function updateLegend() {
@@ -866,14 +1602,14 @@
       const block = document.createElement("div");
       block.className = "legend-block";
       block.innerHTML = `
-        <div class="legend-title">凡例(豪雪区分)</div>
+        <div class="legend-title">${t("legend.polygonTitle")}</div>
         <div class="legend-row">
           <span class="legend-swatch" style="background:${KUBUN_COLOR[1]}"></span>
-          <span class="label">豪雪地帯</span>
+          <span class="label">${t("legend.gosetsu")}</span>
         </div>
         <div class="legend-row">
           <span class="legend-swatch" style="background:${KUBUN_COLOR[2]}"></span>
-          <span class="label">特別豪雪地帯</span>
+          <span class="label">${t("legend.tokubetsu")}</span>
         </div>
       `;
       body.appendChild(block);
@@ -885,7 +1621,7 @@
       block.className = "legend-block";
       const title = document.createElement("div");
       title.className = "legend-title";
-      title.textContent = `凡例(観測点・${def.label})`;
+      title.textContent = t("legend.stationTitle", t(def.labelKey));
       block.appendChild(title);
 
       def.domain.forEach((v, i) => {
@@ -910,10 +1646,126 @@
     if (!showPolygon && stationMode === "none") {
       const block = document.createElement("div");
       block.className = "legend-block";
-      block.innerHTML =
-        '<div class="legend-title" style="color:var(--text-muted)">表示中のレイヤーはありません</div>';
+      block.innerHTML = `<div class="legend-title" style="color:var(--text-muted)">${t("legend.noLayer")}</div>`;
       body.appendChild(block);
     }
+  }
+
+  // ── ポップアップ描画 ───────────────────────────────────
+  function fmtCm(v) {
+    if (v === null || v === undefined) return t("popup.dataNone");
+    return v.toLocaleString(LOCALE_MAP[currentLang] || "en-US") + " " + t("popup.unitCm");
+  }
+
+  function popupMaxWidth() {
+    return Math.min(window.innerWidth - 32, 300) + "px";
+  }
+
+  function showPolygonPopup(feature, lngLat) {
+    const props = feature.properties;
+
+    const prefJa = props.A22_003 || "";
+    const city = props.A22_007 || props.A22_006 || "";
+    const kubunRaw = props.A22_009;
+    const kubunKey = String(kubunRaw);
+    const kubunLabel =
+      kubunKey === "2"
+        ? t("legend.tokubetsu")
+        : kubunKey === "1"
+        ? t("legend.gosetsu")
+        : t("popup.kubunUnknown");
+    const badgeColor = KUBUN_COLOR[kubunRaw] || "#898781";
+    const note = props.A22_008;
+
+    const wrapper = document.createElement("div");
+
+    const prefEl = document.createElement("div");
+    prefEl.className = "popup-pref";
+    prefEl.textContent = prefName(prefJa);
+    wrapper.appendChild(prefEl);
+
+    const cityEl = document.createElement("div");
+    cityEl.className = "popup-city";
+    cityEl.textContent = city;
+    wrapper.appendChild(cityEl);
+
+    const badgeEl = document.createElement("div");
+    badgeEl.className = "popup-badge";
+    badgeEl.style.background = badgeColor;
+    badgeEl.textContent = kubunLabel;
+    wrapper.appendChild(badgeEl);
+
+    if (note) {
+      const noteEl = document.createElement("div");
+      noteEl.className = "popup-note";
+      noteEl.textContent = t("popup.noteLabel") + note;
+      wrapper.appendChild(noteEl);
+    }
+
+    if (popup) {
+      popup.setMaxWidth(popupMaxWidth());
+      popup.setLngLat(lngLat).setDOMContent(wrapper).addTo(map);
+    }
+    activePopupRefresh = () => showPolygonPopup(feature, lngLat);
+  }
+
+  function showStationPopup(key, feature, lngLat) {
+    const def = STATION_LAYERS[key];
+    const p = feature.properties;
+
+    const wrapper = document.createElement("div");
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "popup-pref";
+    titleEl.textContent = t(def.popupTitleKey);
+    wrapper.appendChild(titleEl);
+
+    const nameEl = document.createElement("div");
+    nameEl.className = "popup-station-name";
+    nameEl.textContent = p.name || t("popup.nameUnknown");
+    wrapper.appendChild(nameEl);
+
+    if (p.addr) {
+      const addrEl = document.createElement("div");
+      addrEl.className = "popup-station-addr";
+      addrEl.textContent = p.addr;
+      wrapper.appendChild(addrEl);
+    }
+
+    const table = document.createElement("table");
+    table.className = "popup-stat-table";
+    const rows = [
+      [t("popup.orgLabel"), p.org || t("popup.orgUnknown")],
+      [t("popup.avgLabel"), fmtCm(p.avg)],
+      [t("popup.maxLabel"), fmtCm(p.max)],
+      [
+        p.latestYear ? t("popup.latestWithYear", p.latestYear) : t("popup.latestLabel"),
+        fmtCm(p.latest),
+      ],
+      [
+        t("popup.yearsLabel"),
+        p.years != null ? t("popup.yearsUnit", p.years) : t("popup.yearsUnknown"),
+      ],
+    ];
+    for (const [k, v] of rows) {
+      const tr = document.createElement("tr");
+      const tdK = document.createElement("td");
+      tdK.className = "k";
+      tdK.textContent = k;
+      const tdV = document.createElement("td");
+      tdV.className = "v";
+      tdV.textContent = v;
+      tr.appendChild(tdK);
+      tr.appendChild(tdV);
+      table.appendChild(tr);
+    }
+    wrapper.appendChild(table);
+
+    if (popup) {
+      popup.setMaxWidth(popupMaxWidth());
+      popup.setLngLat(lngLat).setDOMContent(wrapper).addTo(map);
+    }
+    activePopupRefresh = () => showStationPopup(key, feature, lngLat);
   }
 
   // ── 都道府県別集計パネル ───────────────────────────────
@@ -954,7 +1806,7 @@
     ];
   }
 
-  function initPrefPanel() {
+  function fetchPrefData() {
     fetch("data/gosetsu.geojson")
       .then((res) => res.json())
       .then((geojson) => {
@@ -997,67 +1849,74 @@
         }
 
         summary.sort((a, b) => b.cityCount - a.cityCount);
-
-        const list = document.getElementById("pref-list");
-        list.innerHTML = "";
-        for (const row of summary) {
-          const rowEl = document.createElement("div");
-          rowEl.className = "pref-row";
-          rowEl.tabIndex = 0;
-          rowEl.setAttribute("role", "button");
-
-          const top = document.createElement("div");
-          top.className = "pref-row-top";
-          const nameEl = document.createElement("span");
-          nameEl.className = "pref-row-name";
-          nameEl.textContent = row.pref;
-          const countEl = document.createElement("span");
-          countEl.className = "pref-row-count";
-          countEl.textContent = row.cityCount + " 市区町村";
-          top.appendChild(nameEl);
-          top.appendChild(countEl);
-
-          const track = document.createElement("div");
-          track.className = "pref-bar-track";
-          const fill = document.createElement("div");
-          fill.className = "pref-bar-fill";
-          fill.style.width = Math.round(row.ratio * 100) + "%";
-          track.appendChild(fill);
-
-          const sub = document.createElement("div");
-          sub.className = "pref-row-sub";
-          sub.textContent = `うち特別豪雪地帯を含む: ${row.tokubetsuCount} (${Math.round(row.ratio * 100)}%)`;
-
-          rowEl.appendChild(top);
-          rowEl.appendChild(track);
-          rowEl.appendChild(sub);
-
-          const goto = () => {
-            const feats = prefFeatureIndex.get(row.pref) || [];
-            const bounds = bboxOfFeatures(feats);
-            if (bounds) {
-              map.fitBounds(bounds, { padding: 60, duration: 600 });
-            }
-          };
-          rowEl.addEventListener("click", goto);
-          rowEl.addEventListener("keydown", (e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              goto();
-            }
-          });
-
-          list.appendChild(rowEl);
-        }
+        prefSummaryCache = summary;
+        renderPrefList();
       })
       .catch((err) => {
         console.error("都道府県別集計の読み込みに失敗しました:", err);
         const list = document.getElementById("pref-list");
-        list.textContent = "集計データの読み込みに失敗しました。";
+        list.textContent = t("prefPanel.loadError");
       });
   }
 
-  document.getElementById("pref-panel-header").addEventListener("click", () => {
-    document.getElementById("pref-panel").classList.toggle("collapsed");
-  });
+  function renderPrefList() {
+    if (!prefSummaryCache) return;
+    const list = document.getElementById("pref-list");
+    list.innerHTML = "";
+    for (const row of prefSummaryCache) {
+      const rowEl = document.createElement("div");
+      rowEl.className = "pref-row";
+      rowEl.tabIndex = 0;
+      rowEl.setAttribute("role", "button");
+
+      const top = document.createElement("div");
+      top.className = "pref-row-top";
+      const nameEl = document.createElement("span");
+      nameEl.className = "pref-row-name";
+      nameEl.textContent = prefName(row.pref);
+      const countEl = document.createElement("span");
+      countEl.className = "pref-row-count";
+      countEl.textContent = t("prefPanel.cityCount", row.cityCount);
+      top.appendChild(nameEl);
+      top.appendChild(countEl);
+
+      const track = document.createElement("div");
+      track.className = "pref-bar-track";
+      const fill = document.createElement("div");
+      fill.className = "pref-bar-fill";
+      fill.style.width = Math.round(row.ratio * 100) + "%";
+      track.appendChild(fill);
+
+      const sub = document.createElement("div");
+      sub.className = "pref-row-sub";
+      sub.textContent = t(
+        "prefPanel.tokubetsuSub",
+        row.tokubetsuCount,
+        Math.round(row.ratio * 100)
+      );
+
+      rowEl.appendChild(top);
+      rowEl.appendChild(track);
+      rowEl.appendChild(sub);
+
+      const goto = () => {
+        const feats = prefFeatureIndex.get(row.pref) || [];
+        const bounds = bboxOfFeatures(feats);
+        if (bounds) {
+          map.fitBounds(bounds, { padding: 60, duration: 600 });
+        }
+      };
+      rowEl.addEventListener("click", goto);
+      rowEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          goto();
+        }
+      });
+
+      list.appendChild(rowEl);
+    }
+  }
 </script>
+</body>
+</html>
