@@ -14,11 +14,19 @@
     --text-secondary: #52514e;
     --text-muted: #898781;
     --border-hairline: rgba(11, 11, 11, 0.1);
-    --gosetsu: #86b6ef; /* 豪雪地帯（区分1） sequential step 250 */
-    --tokubetsu: #1c5cab; /* 特別豪雪地帯（区分2） sequential step 550 */
+    --gosetsu: #86b6ef; /* 豪雪地帯（区分1） sequential blue step 250 */
+    --tokubetsu: #1c5cab; /* 特別豪雪地帯（区分2） sequential blue step 550 */
     --gosetsu-line: #5598e7;
     --tokubetsu-line: #104281;
     --hover-outline: #0b0b0b;
+    /* 観測点用シーケンシャル配色(寒色系・aqua)。ポリゴンのblueと区別がつくよう
+       別の一色相ランプを採用。値: scripts/build-stations.sh の avg(累年平均)を
+       dataviz スキルの validate_palette.js --ordinal で検証済み(light/dark両モードPASS)。 */
+    --station-1: #53bb8d; /* aqua ramp step 300 (低い値) */
+    --station-2: #00a368; /* aqua ramp step 400 */
+    --station-3: #00844f; /* aqua ramp step 500 */
+    --station-4: #00653a; /* aqua ramp step 600 (高い値) */
+    --station-stroke: #fcfcfb;
   }
 
   * {
@@ -76,9 +84,16 @@
     left: 12px;
     padding: 10px 14px;
     font-size: 12px;
+    max-width: 220px;
   }
 
-  #legend-panel .legend-title {
+  .legend-block + .legend-block {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-hairline);
+  }
+
+  .legend-title {
     font-weight: 700;
     font-size: 12px;
     margin-bottom: 6px;
@@ -100,8 +115,160 @@
     border: 1px solid var(--border-hairline);
   }
 
+  .legend-dot {
+    border-radius: 50%;
+    flex: none;
+    border: 1px solid var(--border-hairline);
+    background: var(--surface-1);
+  }
+
   .legend-row span.label {
     color: var(--text-primary);
+    font-size: 11px;
+  }
+
+  /* ── レイヤー切替パネル ───────────────────────────── */
+  #layer-switch-panel {
+    top: 96px;
+    right: 12px;
+    padding: 10px 14px;
+    font-size: 12px;
+    width: 200px;
+  }
+
+  #layer-switch-panel .section-title {
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin: 8px 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  #layer-switch-panel .section-title:first-child {
+    margin-top: 0;
+  }
+
+  .switch-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 0;
+    cursor: pointer;
+  }
+
+  .switch-row input {
+    accent-color: var(--tokubetsu);
+    flex: none;
+  }
+
+  .switch-row span {
+    font-size: 12.5px;
+    color: var(--text-primary);
+  }
+
+  /* ── 都道府県別集計パネル ───────────────────────────── */
+  #pref-panel {
+    top: 176px;
+    left: 12px;
+    width: 260px;
+    max-height: calc(100vh - 500px);
+    min-height: 42px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #pref-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+    flex: none;
+  }
+
+  #pref-panel-header h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  #pref-panel-header .chevron {
+    font-size: 11px;
+    color: var(--text-secondary);
+    transition: transform 0.15s ease;
+  }
+
+  #pref-panel.collapsed #pref-panel-header .chevron {
+    transform: rotate(-90deg);
+  }
+
+  #pref-panel-body {
+    overflow-y: auto;
+    padding: 0 10px 10px;
+    flex: 1 1 auto;
+  }
+
+  #pref-panel.collapsed #pref-panel-body {
+    display: none;
+  }
+
+  #pref-panel-body .pref-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 0 4px 6px;
+    line-height: 1.5;
+  }
+
+  .pref-row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 5px 4px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .pref-row:hover {
+    background: rgba(11, 11, 11, 0.05);
+  }
+
+  .pref-row-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 12px;
+  }
+
+  .pref-row-name {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .pref-row-count {
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    font-size: 11.5px;
+  }
+
+  .pref-bar-track {
+    height: 6px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--gosetsu) 30%, var(--surface-1));
+    overflow: hidden;
+  }
+
+  .pref-bar-fill {
+    height: 100%;
+    background: var(--tokubetsu);
+    border-radius: 3px 0 0 3px;
+  }
+
+  .pref-row-sub {
+    font-size: 10.5px;
+    color: var(--text-muted);
   }
 
   #source-panel {
@@ -164,6 +331,43 @@
     line-height: 1.5;
   }
 
+  .popup-station-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+  }
+
+  .popup-station-addr {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+
+  .popup-stat-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .popup-stat-table td {
+    padding: 2.5px 0;
+  }
+
+  .popup-stat-table td.k {
+    color: var(--text-secondary);
+    padding-right: 10px;
+    white-space: nowrap;
+  }
+
+  .popup-stat-table td.v {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+
   #loading {
     position: absolute;
     z-index: 3;
@@ -185,6 +389,15 @@
     #legend-panel {
       bottom: 60px;
     }
+    #pref-panel {
+      width: calc(100% - 24px);
+      max-height: 40vh;
+    }
+    #layer-switch-panel {
+      width: 168px;
+      top: 12px;
+      right: 12px;
+    }
   }
 </style>
 
@@ -193,28 +406,61 @@
 <div id="title-panel" class="panel">
   <h1>日本の豪雪地帯マップ(2016年度)</h1>
   <p>
-    国土数値情報「豪雪地帯データ」(A22-2016)をもとにした、豪雪地帯・特別豪雪地帯の指定区域の可視化です。
+    国土数値情報「豪雪地帯データ」(A22-2016)・「豪雪地帯データ(気象データ等)」(A22-m-14)をもとにした、豪雪地帯・特別豪雪地帯の指定区域と気象観測点の可視化です。
   </p>
 </div>
 
-<div id="legend-panel" class="panel">
-  <div class="legend-title">凡例(豪雪区分)</div>
-  <div class="legend-row">
-    <span class="legend-swatch" style="background: var(--gosetsu)"></span>
-    <span class="label">豪雪地帯</span>
+<div id="layer-switch-panel" class="panel">
+  <div class="section-title">指定区域</div>
+  <label class="switch-row">
+    <input type="checkbox" id="toggle-gosetsu" checked />
+    <span>豪雪地帯ポリゴンを表示</span>
+  </label>
+
+  <div class="section-title">観測点</div>
+  <label class="switch-row">
+    <input type="radio" name="station-mode" value="none" checked />
+    <span>なし</span>
+  </label>
+  <label class="switch-row">
+    <input type="radio" name="station-mode" value="maxdepth" />
+    <span>最深積雪(累年平均)</span>
+  </label>
+  <label class="switch-row">
+    <input type="radio" name="station-mode" value="snowfall" />
+    <span>累計降雪量(累年平均)</span>
+  </label>
+</div>
+
+<div id="pref-panel" class="panel">
+  <div id="pref-panel-header">
+    <h2>都道府県別 指定市区町村数</h2>
+    <span class="chevron">▾</span>
   </div>
-  <div class="legend-row">
-    <span class="legend-swatch" style="background: var(--tokubetsu)"></span>
-    <span class="label">特別豪雪地帯</span>
+  <div id="pref-panel-body">
+    <div class="pref-hint">行をクリックすると地図がその都道府県へ移動します。</div>
+    <div id="pref-list"></div>
   </div>
 </div>
 
+<div id="legend-panel" class="panel">
+  <div id="legend-body"></div>
+</div>
+
 <div id="source-panel" class="panel">
-  出典: <a
+  出典:
+  <a
     href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-2016.html"
     target="_blank"
     rel="noopener"
-  >国土数値情報(豪雪地帯データ)国土交通省</a>
+    >豪雪地帯データ(A22-2016)</a
+  >・<a
+    href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html"
+    target="_blank"
+    rel="noopener"
+    >豪雪地帯データ(気象データ等)(A22-m-14)</a
+  >
+  国土交通省
 </div>
 
 <div id="loading">地図データを読み込み中...</div>
@@ -267,9 +513,69 @@
     "2": "#1c5cab",
   };
 
+  // ── 観測点レイヤーの配色・スケール定義 ──────────────────────
+  // dataviz スキルの「寒色系シーケンシャル(aqua)」ランプ(validate_palette.js
+  // --ordinal で light/dark 両モード検証済み)。ポリゴンのblue 2色と区別が
+  // つくよう別の一色相を採用している。
+  const STATION_RAMP = ["#53bb8d", "#00a368", "#00844f", "#00653a"];
+
+  const STATION_LAYERS = {
+    maxdepth: {
+      source: "stations-maxdepth",
+      layer: "stations-maxdepth-circle",
+      file: "data/stations_maxdepth.geojson",
+      label: "最深積雪(累年平均)",
+      unit: "cm",
+      // avg(cm)の分布(p90≈224, p99≈422)にもとづく区分。範囲外はclamp。
+      domain: [0, 50, 150, 350],
+      radii: [3, 5, 8, 12],
+      popupTitle: "気象観測点(最深積雪)",
+    },
+    snowfall: {
+      source: "stations-snowfall",
+      layer: "stations-snowfall-circle",
+      file: "data/stations_snowfall.geojson",
+      label: "累計降雪量(累年平均)",
+      unit: "cm",
+      // avg(cm)の分布(p90≈1144, p99≈2024)にもとづく区分。範囲外はclamp。
+      domain: [0, 300, 800, 2000],
+      radii: [3, 5, 8, 12],
+      popupTitle: "気象観測点(累計降雪量)",
+    },
+  };
+
+  function buildRadiusExpression(domain, radii) {
+    const small = radii.map((r) => Math.max(2, +(r * 0.6).toFixed(1)));
+    const stopsSmall = [];
+    const stopsLarge = [];
+    domain.forEach((v, i) => {
+      stopsSmall.push(v, small[i]);
+      stopsLarge.push(v, radii[i]);
+    });
+    return [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      3,
+      ["interpolate", ["linear"], ["get", "avg"], ...stopsSmall],
+      9,
+      ["interpolate", ["linear"], ["get", "avg"], ...stopsLarge],
+    ];
+  }
+
+  function buildColorExpression(domain, ramp) {
+    const stops = [];
+    domain.forEach((v, i) => {
+      stops.push(v, ramp[i]);
+    });
+    return ["interpolate", ["linear"], ["get", "avg"], ...stops];
+  }
+
   let hoveredFeatureId = null;
+  let prefFeatureIndex = null; // { prefName: [feature, ...] }
 
   map.on("load", () => {
+    // ── 指定区域ポリゴン ───────────────────────────────
     map.addSource("gosetsu", {
       type: "geojson",
       data: "data/gosetsu.geojson",
@@ -334,8 +640,33 @@
       },
     });
 
+    // ── 観測点(最深積雪 / 累計降雪量) ───────────────────────
+    for (const key of Object.keys(STATION_LAYERS)) {
+      const def = STATION_LAYERS[key];
+      map.addSource(def.source, {
+        type: "geojson",
+        data: def.file,
+      });
+      map.addLayer({
+        id: def.layer,
+        type: "circle",
+        source: def.source,
+        layout: {
+          visibility: "none",
+        },
+        paint: {
+          "circle-radius": buildRadiusExpression(def.domain, def.radii),
+          "circle-color": buildColorExpression(def.domain, STATION_RAMP),
+          "circle-stroke-color": "#fcfcfb",
+          "circle-stroke-width": 1.2,
+          "circle-opacity": 0.92,
+        },
+      });
+    }
+
     document.getElementById("loading").remove();
 
+    // ── ホバー(ポリゴン) ───────────────────────────────
     map.on("mousemove", "gosetsu-fill", (e) => {
       if (!e.features || e.features.length === 0) return;
       map.getCanvas().style.cursor = "pointer";
@@ -361,12 +692,23 @@
       hoveredFeatureId = null;
     });
 
+    for (const key of Object.keys(STATION_LAYERS)) {
+      const layerId = STATION_LAYERS[key].layer;
+      map.on("mouseenter", layerId, () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", layerId, () => {
+        map.getCanvas().style.cursor = "";
+      });
+    }
+
     const popup = new maplibregl.Popup({
       closeButton: true,
       closeOnClick: true,
       maxWidth: "280px",
     });
 
+    // ── クリック(ポリゴン) ───────────────────────────────
     map.on("click", "gosetsu-fill", (e) => {
       if (!e.features || e.features.length === 0) return;
       const props = e.features[0].properties;
@@ -405,9 +747,317 @@
 
       popup.setLngLat(e.lngLat).setDOMContent(wrapper).addTo(map);
     });
+
+    // ── クリック(観測点) ───────────────────────────────
+    function fmtCm(v) {
+      return v === null || v === undefined
+        ? "データなし"
+        : v.toLocaleString("ja-JP") + " cm";
+    }
+
+    for (const key of Object.keys(STATION_LAYERS)) {
+      const def = STATION_LAYERS[key];
+      map.on("click", def.layer, (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const p = e.features[0].properties;
+
+        const wrapper = document.createElement("div");
+
+        const titleEl = document.createElement("div");
+        titleEl.className = "popup-pref";
+        titleEl.textContent = def.popupTitle;
+        wrapper.appendChild(titleEl);
+
+        const nameEl = document.createElement("div");
+        nameEl.className = "popup-station-name";
+        nameEl.textContent = p.name || "(名称不明)";
+        wrapper.appendChild(nameEl);
+
+        if (p.addr) {
+          const addrEl = document.createElement("div");
+          addrEl.className = "popup-station-addr";
+          addrEl.textContent = p.addr;
+          wrapper.appendChild(addrEl);
+        }
+
+        const table = document.createElement("table");
+        table.className = "popup-stat-table";
+        const rows = [
+          ["観測機関", p.org || "不明"],
+          ["累年平均", fmtCm(p.avg)],
+          ["累年最大", fmtCm(p.max)],
+          [
+            p.latestYear ? `最新年値(${p.latestYear}年)` : "最新年値",
+            fmtCm(p.latest),
+          ],
+          ["観測年数", p.years != null ? p.years + " 年" : "不明"],
+        ];
+        for (const [k, v] of rows) {
+          const tr = document.createElement("tr");
+          const tdK = document.createElement("td");
+          tdK.className = "k";
+          tdK.textContent = k;
+          const tdV = document.createElement("td");
+          tdV.className = "v";
+          tdV.textContent = v;
+          tr.appendChild(tdK);
+          tr.appendChild(tdV);
+          table.appendChild(tr);
+        }
+        wrapper.appendChild(table);
+
+        popup.setLngLat(e.lngLat).setDOMContent(wrapper).addTo(map);
+      });
+    }
+
+    initPrefPanel();
+    updateLegend();
   });
 
   map.on("error", (e) => {
     console.error("Map error:", e && e.error);
+  });
+
+  // ── レイヤー切替コントロール ───────────────────────────────
+  document.getElementById("toggle-gosetsu").addEventListener("change", (e) => {
+    const visible = e.target.checked ? "visible" : "none";
+    for (const id of ["gosetsu-fill", "gosetsu-line", "gosetsu-hover-outline"]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible);
+    }
+    updateLegend();
+  });
+
+  document.querySelectorAll('input[name="station-mode"]').forEach((el) => {
+    el.addEventListener("change", (e) => {
+      const mode = e.target.value;
+      for (const key of Object.keys(STATION_LAYERS)) {
+        const layerId = STATION_LAYERS[key].layer;
+        if (!map.getLayer(layerId)) continue;
+        map.setLayoutProperty(
+          layerId,
+          "visibility",
+          key === mode ? "visible" : "none"
+        );
+      }
+      updateLegend();
+    });
+  });
+
+  // ── 凡例(選択中レイヤーに応じて動的更新) ─────────────────────
+  function currentStationMode() {
+    const el = document.querySelector('input[name="station-mode"]:checked');
+    return el ? el.value : "none";
+  }
+
+  function fmtDomainLabel(domain, i, unit) {
+    if (i === 0) return `〜${domain[1]}${unit}`;
+    if (i === domain.length - 1) return `${domain[i]}${unit}〜`;
+    return `${domain[i]}〜${domain[i + 1]}${unit}`;
+  }
+
+  function updateLegend() {
+    const body = document.getElementById("legend-body");
+    body.innerHTML = "";
+
+    const showPolygon = document.getElementById("toggle-gosetsu").checked;
+    const stationMode = currentStationMode();
+
+    if (showPolygon) {
+      const block = document.createElement("div");
+      block.className = "legend-block";
+      block.innerHTML = `
+        <div class="legend-title">凡例(豪雪区分)</div>
+        <div class="legend-row">
+          <span class="legend-swatch" style="background:${KUBUN_COLOR[1]}"></span>
+          <span class="label">豪雪地帯</span>
+        </div>
+        <div class="legend-row">
+          <span class="legend-swatch" style="background:${KUBUN_COLOR[2]}"></span>
+          <span class="label">特別豪雪地帯</span>
+        </div>
+      `;
+      body.appendChild(block);
+    }
+
+    if (stationMode !== "none") {
+      const def = STATION_LAYERS[stationMode];
+      const block = document.createElement("div");
+      block.className = "legend-block";
+      const title = document.createElement("div");
+      title.className = "legend-title";
+      title.textContent = `凡例(観測点・${def.label})`;
+      block.appendChild(title);
+
+      def.domain.forEach((v, i) => {
+        const row = document.createElement("div");
+        row.className = "legend-row";
+        const dotSize = def.radii[i] * 2;
+        const dot = document.createElement("span");
+        dot.className = "legend-dot";
+        dot.style.width = dotSize + "px";
+        dot.style.height = dotSize + "px";
+        dot.style.background = STATION_RAMP[i];
+        const label = document.createElement("span");
+        label.className = "label";
+        label.textContent = fmtDomainLabel(def.domain, i, def.unit);
+        row.appendChild(dot);
+        row.appendChild(label);
+        block.appendChild(row);
+      });
+      body.appendChild(block);
+    }
+
+    if (!showPolygon && stationMode === "none") {
+      const block = document.createElement("div");
+      block.className = "legend-block";
+      block.innerHTML =
+        '<div class="legend-title" style="color:var(--text-muted)">表示中のレイヤーはありません</div>';
+      body.appendChild(block);
+    }
+  }
+
+  // ── 都道府県別集計パネル ───────────────────────────────
+  function walkCoords(geom, fn) {
+    if (!geom) return;
+    if (geom.type === "Point") {
+      fn(geom.coordinates);
+    } else if (geom.type === "MultiPoint" || geom.type === "LineString") {
+      geom.coordinates.forEach(fn);
+    } else if (geom.type === "MultiLineString" || geom.type === "Polygon") {
+      geom.coordinates.forEach((ring) => ring.forEach(fn));
+    } else if (geom.type === "MultiPolygon") {
+      geom.coordinates.forEach((poly) =>
+        poly.forEach((ring) => ring.forEach(fn))
+      );
+    } else if (geom.type === "GeometryCollection") {
+      (geom.geometries || []).forEach((g) => walkCoords(g, fn));
+    }
+  }
+
+  function bboxOfFeatures(features) {
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const f of features) {
+      walkCoords(f.geometry, ([x, y]) => {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      });
+    }
+    if (!isFinite(minX)) return null;
+    return [
+      [minX, minY],
+      [maxX, maxY],
+    ];
+  }
+
+  function initPrefPanel() {
+    fetch("data/gosetsu.geojson")
+      .then((res) => res.json())
+      .then((geojson) => {
+        const feats = geojson.features || [];
+
+        // 都道府県ごとに { code -> hasTokubetsu, features[] } を集計
+        const byPref = new Map();
+        for (const f of feats) {
+          const props = f.properties || {};
+          const pref = props.A22_003 || "不明";
+          const code = props.A22_002;
+          const kubun = String(props.A22_009);
+
+          if (!byPref.has(pref)) {
+            byPref.set(pref, { codes: new Map(), features: [] });
+          }
+          const entry = byPref.get(pref);
+          entry.features.push(f);
+          if (code) {
+            const hasTokubetsu = entry.codes.get(code) || false;
+            entry.codes.set(code, hasTokubetsu || kubun === "2");
+          }
+        }
+
+        prefFeatureIndex = new Map();
+        const summary = [];
+        for (const [pref, entry] of byPref.entries()) {
+          const cityCount = entry.codes.size;
+          let tokubetsuCount = 0;
+          for (const v of entry.codes.values()) {
+            if (v) tokubetsuCount++;
+          }
+          summary.push({
+            pref,
+            cityCount,
+            tokubetsuCount,
+            ratio: cityCount > 0 ? tokubetsuCount / cityCount : 0,
+          });
+          prefFeatureIndex.set(pref, entry.features);
+        }
+
+        summary.sort((a, b) => b.cityCount - a.cityCount);
+
+        const list = document.getElementById("pref-list");
+        list.innerHTML = "";
+        for (const row of summary) {
+          const rowEl = document.createElement("div");
+          rowEl.className = "pref-row";
+          rowEl.tabIndex = 0;
+          rowEl.setAttribute("role", "button");
+
+          const top = document.createElement("div");
+          top.className = "pref-row-top";
+          const nameEl = document.createElement("span");
+          nameEl.className = "pref-row-name";
+          nameEl.textContent = row.pref;
+          const countEl = document.createElement("span");
+          countEl.className = "pref-row-count";
+          countEl.textContent = row.cityCount + " 市区町村";
+          top.appendChild(nameEl);
+          top.appendChild(countEl);
+
+          const track = document.createElement("div");
+          track.className = "pref-bar-track";
+          const fill = document.createElement("div");
+          fill.className = "pref-bar-fill";
+          fill.style.width = Math.round(row.ratio * 100) + "%";
+          track.appendChild(fill);
+
+          const sub = document.createElement("div");
+          sub.className = "pref-row-sub";
+          sub.textContent = `うち特別豪雪地帯を含む: ${row.tokubetsuCount} (${Math.round(row.ratio * 100)}%)`;
+
+          rowEl.appendChild(top);
+          rowEl.appendChild(track);
+          rowEl.appendChild(sub);
+
+          const goto = () => {
+            const feats = prefFeatureIndex.get(row.pref) || [];
+            const bounds = bboxOfFeatures(feats);
+            if (bounds) {
+              map.fitBounds(bounds, { padding: 60, duration: 600 });
+            }
+          };
+          rowEl.addEventListener("click", goto);
+          rowEl.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              goto();
+            }
+          });
+
+          list.appendChild(rowEl);
+        }
+      })
+      .catch((err) => {
+        console.error("都道府県別集計の読み込みに失敗しました:", err);
+        const list = document.getElementById("pref-list");
+        list.textContent = "集計データの読み込みに失敗しました。";
+      });
+  }
+
+  document.getElementById("pref-panel-header").addEventListener("click", () => {
+    document.getElementById("pref-panel").classList.toggle("collapsed");
   });
 </script>
