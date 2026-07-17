@@ -1373,16 +1373,16 @@
     resizeRafId = requestAnimationFrame(() => {
       resizeRafId = null;
       syncTitleHeight();
+      const nowMobile = isMobileView();
+      if (nowMobile && !wasMobile) {
+        document.getElementById("pref-panel").classList.add("collapsed");
+        document.getElementById("legend-panel").classList.add("collapsed");
+        document.getElementById("title-panel").classList.remove("expanded");
+        document.getElementById("layer-switch-panel").classList.remove("open");
+        document.getElementById("lang-menu").classList.remove("open");
+      }
+      wasMobile = nowMobile;
     });
-    const nowMobile = isMobileView();
-    if (nowMobile && !wasMobile) {
-      document.getElementById("pref-panel").classList.add("collapsed");
-      document.getElementById("legend-panel").classList.add("collapsed");
-      document.getElementById("title-panel").classList.remove("expanded");
-      document.getElementById("layer-switch-panel").classList.remove("open");
-      document.getElementById("lang-menu").classList.remove("open");
-    }
-    wasMobile = nowMobile;
   });
 
   document.getElementById("pref-panel-header").addEventListener("click", () => {
@@ -1501,7 +1501,7 @@
   }
 
   let hoveredFeatureId = null;
-  let prefBoundsIndex = null; // { prefName: [[minX,minY],[maxX,maxY]] }
+  let prefBoundsIndex = null; // Map<prefName, [[minX,minY],[maxX,maxY]]>
   let prefSummaryCache = null;
   let gosetsuDataPromise = null;
 
