@@ -1617,9 +1617,12 @@
     document.getElementById("loading").remove();
 
     // ── ホバー(ポリゴン) ───────────────────────────────
+    map.on("mouseenter", "gosetsu-fill", () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+
     map.on("mousemove", "gosetsu-fill", (e) => {
       if (!e.features || e.features.length === 0) return;
-      map.getCanvas().style.cursor = "pointer";
       const id = e.features[0].id;
       if (id === hoveredFeatureId) return;
       if (hoveredFeatureId !== null && hoveredFeatureId !== id) {
