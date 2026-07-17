@@ -1530,7 +1530,8 @@
       gosetsuData = await loadGosetsuData();
     } catch (err) {
       console.error("地図データの読み込みに失敗しました:", err);
-      document.getElementById("loading").textContent = t("prefPanel.loadError");
+      const loadingEl = document.getElementById("loading");
+      if (loadingEl) loadingEl.textContent = t("prefPanel.loadError");
       return;
     }
 
