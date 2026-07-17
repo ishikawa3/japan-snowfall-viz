@@ -1369,7 +1369,6 @@
 
   let resizeRafId = null;
   window.addEventListener("resize", () => {
-    if (resizeRafId === null) syncTitleHeight();
     if (resizeRafId !== null) cancelAnimationFrame(resizeRafId);
     resizeRafId = requestAnimationFrame(() => {
       resizeRafId = null;
@@ -1508,10 +1507,15 @@
 
   function loadGosetsuData() {
     if (!gosetsuDataPromise) {
-      gosetsuDataPromise = fetch("data/gosetsu.geojson").then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      });
+      gosetsuDataPromise = fetch("data/gosetsu.geojson")
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .catch((err) => {
+          gosetsuDataPromise = null;
+          throw err;
+        });
     }
     return gosetsuDataPromise;
   }
