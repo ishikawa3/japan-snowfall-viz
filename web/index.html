@@ -1369,6 +1369,7 @@
 
   let resizeRafId = null;
   window.addEventListener("resize", () => {
+    if (resizeRafId === null) syncTitleHeight();
     if (resizeRafId !== null) cancelAnimationFrame(resizeRafId);
     resizeRafId = requestAnimationFrame(() => {
       resizeRafId = null;
@@ -1624,7 +1625,7 @@
     map.on("mousemove", "gosetsu-fill", (e) => {
       if (!e.features || e.features.length === 0) return;
       const feature = e.features[0];
-      if (!feature || feature.id === hoveredFeatureId) return;
+      if (feature.id === hoveredFeatureId) return;
       const id = feature.id;
       if (hoveredFeatureId !== null && hoveredFeatureId !== id) {
         map.setFeatureState(
@@ -2027,7 +2028,7 @@
       rowEl.appendChild(sub);
 
       const goto = () => {
-        const bounds = prefBoundsIndex && prefBoundsIndex.get(row.pref);
+        const bounds = prefBoundsIndex.get(row.pref);
         if (bounds) {
           map.fitBounds(bounds, { padding: 60, duration: 600 });
         }
