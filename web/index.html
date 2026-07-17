@@ -1623,8 +1623,9 @@
 
     map.on("mousemove", "gosetsu-fill", (e) => {
       if (!e.features || e.features.length === 0) return;
-      const id = e.features[0].id;
-      if (id === hoveredFeatureId) return;
+      const feature = e.features[0];
+      if (!feature || feature.id === hoveredFeatureId) return;
+      const id = feature.id;
       if (hoveredFeatureId !== null && hoveredFeatureId !== id) {
         map.setFeatureState(
           { source: "gosetsu", id: hoveredFeatureId },
