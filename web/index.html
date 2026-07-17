@@ -1509,7 +1509,11 @@
     if (!gosetsuDataPromise) {
       gosetsuDataPromise = fetch("data/gosetsu.geojson")
         .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          if (!res.ok) {
+            throw new Error(
+              `Failed to load gosetsu.geojson: HTTP ${res.status} ${res.statusText}`
+            );
+          }
           return res.json();
         })
         .catch((err) => {
@@ -1623,7 +1627,8 @@
 
     // ── ホバー(ポリゴン) ───────────────────────────────
     map.on("mouseenter", "gosetsu-fill", () => {
-      map.getCanvas().style.cursor = "pointer";
+      const canvasStyle = map.getCanvas().style;
+      if (canvasStyle.cursor !== "pointer") canvasStyle.cursor = "pointer";
     });
 
     map.on("mousemove", "gosetsu-fill", (e) => {
