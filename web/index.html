@@ -1627,8 +1627,7 @@
 
     // ── ホバー(ポリゴン) ───────────────────────────────
     map.on("mouseenter", "gosetsu-fill", () => {
-      const canvasStyle = map.getCanvas().style;
-      if (canvasStyle.cursor !== "pointer") canvasStyle.cursor = "pointer";
+      map.getCanvas().style.cursor = "pointer";
     });
 
     map.on("mousemove", "gosetsu-fill", (e) => {
