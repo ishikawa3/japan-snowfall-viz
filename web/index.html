@@ -823,7 +823,10 @@
         org: "国土交通省",
         gsiTiles: "地理院タイル",
       },
-      loading: { text: "地図データを読み込み中..." },
+      loading: {
+        text: "地図データを読み込み中...",
+        error: "地図データの読み込みに失敗しました。",
+      },
       lang: { buttonAria: "言語を選択" },
     },
     en: {
@@ -887,7 +890,10 @@
         org: "Ministry of Land, Infrastructure, Transport and Tourism (MLIT), Japan",
         gsiTiles: "GSI Tiles",
       },
-      loading: { text: "Loading map data..." },
+      loading: {
+        text: "Loading map data...",
+        error: "Failed to load the map data.",
+      },
       lang: { buttonAria: "Select language" },
     },
     "zh-Hans": {
@@ -949,7 +955,10 @@
         org: "日本国土交通省",
         gsiTiles: "国土地理院地图瓦片",
       },
-      loading: { text: "地图数据加载中..." },
+      loading: {
+        text: "地图数据加载中...",
+        error: "地图数据加载失败。",
+      },
       lang: { buttonAria: "选择语言" },
     },
     ko: {
@@ -1011,7 +1020,10 @@
         org: "일본 국토교통성",
         gsiTiles: "국토지리원 타일",
       },
-      loading: { text: "지도 데이터를 불러오는 중..." },
+      loading: {
+        text: "지도 데이터를 불러오는 중...",
+        error: "지도 데이터를 불러오지 못했습니다.",
+      },
       lang: { buttonAria: "언어 선택" },
     },
   };
@@ -1367,17 +1379,18 @@
     }
   });
 
+  let resizeRafId = null;
   window.addEventListener("resize", () => {
-    syncTitleHeight();
-    const nowMobile = isMobileView();
-    if (nowMobile && !wasMobile) {
-      document.getElementById("pref-panel").classList.add("collapsed");
-      document.getElementById("legend-panel").classList.add("collapsed");
-      document.getElementById("title-panel").classList.remove("expanded");
-      document.getElementById("layer-switch-panel").classList.remove("open");
-      document.getElementById("lang-menu").classList.remove("open");
-    }
-    wasMobile = nowMobile;
+    if (resizeRafId !== null) cancelAnimationFrame(resizeRafId);
+    resizeRafId = requestAnimationFrame(() => {
+      resizeRafId = null;
+      syncTitleHeight();
+      const nowMobile = isMobileView();
+      if (nowMobile && !wasMobile) {
+        closeMobileOverlays();
+      }
+      wasMobile = nowMobile;
+    });
   });
 
   document.getElementById("pref-panel-header").addEventListener("click", () => {
@@ -1496,14 +1509,44 @@
   }
 
   let hoveredFeatureId = null;
-  let prefFeatureIndex = null; // { prefName: [feature, ...] }
+  let prefBoundsIndex = null; // Map<prefName, [[minX,minY],[maxX,maxY]]>
   let prefSummaryCache = null;
+  let gosetsuDataPromise = null;
 
-  map.on("load", () => {
+  function loadGosetsuData() {
+    if (!gosetsuDataPromise) {
+      gosetsuDataPromise = fetch("data/gosetsu.geojson")
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(
+              `gosetsu.geojson の読み込みに失敗しました: HTTP ${res.status} ${res.statusText}`
+            );
+          }
+          return res.json();
+        })
+        .catch((err) => {
+          gosetsuDataPromise = null;
+          throw err;
+        });
+    }
+    return gosetsuDataPromise;
+  }
+
+  map.on("load", async () => {
+    let gosetsuData;
+    try {
+      gosetsuData = await loadGosetsuData();
+    } catch (err) {
+      console.error("地図データの読み込みに失敗しました:", err);
+      const loadingEl = document.getElementById("loading");
+      if (loadingEl) loadingEl.textContent = t("loading.error");
+      return;
+    }
+
     // ── 指定区域ポリゴン ───────────────────────────────
     map.addSource("gosetsu", {
       type: "geojson",
-      data: "data/gosetsu.geojson",
+      data: gosetsuData,
       generateId: true,
     });
 
@@ -1592,10 +1635,15 @@
     document.getElementById("loading").remove();
 
     // ── ホバー(ポリゴン) ───────────────────────────────
+    map.on("mouseenter", "gosetsu-fill", () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+
     map.on("mousemove", "gosetsu-fill", (e) => {
       if (!e.features || e.features.length === 0) return;
-      map.getCanvas().style.cursor = "pointer";
-      const id = e.features[0].id;
+      const feature = e.features[0];
+      if (feature.id === hoveredFeatureId) return;
+      const id = feature.id;
       if (hoveredFeatureId !== null && hoveredFeatureId !== id) {
         map.setFeatureState(
           { source: "gosetsu", id: hoveredFeatureId },
@@ -1651,7 +1699,7 @@
       });
     }
 
-    fetchPrefData();
+    fetchPrefData(gosetsuData);
     updateLegend();
     updateMapAttribution();
   });
@@ -1912,57 +1960,48 @@
     ];
   }
 
-  function fetchPrefData() {
-    fetch("data/gosetsu.geojson")
-      .then((res) => res.json())
-      .then((geojson) => {
-        const feats = geojson.features || [];
+  function fetchPrefData(geojson) {
+    const feats = (geojson && geojson.features) || [];
 
-        // 都道府県ごとに { code -> hasTokubetsu, features[] } を集計
-        const byPref = new Map();
-        for (const f of feats) {
-          const props = f.properties || {};
-          const pref = props.A22_003 || "不明";
-          const code = props.A22_002;
-          const kubun = String(props.A22_009);
+    // 都道府県ごとに { code -> hasTokubetsu, features[] } を集計
+    const byPref = new Map();
+    for (const f of feats) {
+      const props = f.properties || {};
+      const pref = props.A22_003 || "不明";
+      const code = props.A22_002;
+      const kubun = String(props.A22_009);
 
-          if (!byPref.has(pref)) {
-            byPref.set(pref, { codes: new Map(), features: [] });
-          }
-          const entry = byPref.get(pref);
-          entry.features.push(f);
-          if (code) {
-            const hasTokubetsu = entry.codes.get(code) || false;
-            entry.codes.set(code, hasTokubetsu || kubun === "2");
-          }
-        }
+      if (!byPref.has(pref)) {
+        byPref.set(pref, { codes: new Map(), features: [] });
+      }
+      const entry = byPref.get(pref);
+      entry.features.push(f);
+      if (code) {
+        const hasTokubetsu = entry.codes.get(code) || false;
+        entry.codes.set(code, hasTokubetsu || kubun === "2");
+      }
+    }
 
-        prefFeatureIndex = new Map();
-        const summary = [];
-        for (const [pref, entry] of byPref.entries()) {
-          const cityCount = entry.codes.size;
-          let tokubetsuCount = 0;
-          for (const v of entry.codes.values()) {
-            if (v) tokubetsuCount++;
-          }
-          summary.push({
-            pref,
-            cityCount,
-            tokubetsuCount,
-            ratio: cityCount > 0 ? tokubetsuCount / cityCount : 0,
-          });
-          prefFeatureIndex.set(pref, entry.features);
-        }
-
-        summary.sort((a, b) => b.cityCount - a.cityCount);
-        prefSummaryCache = summary;
-        renderPrefList();
-      })
-      .catch((err) => {
-        console.error("都道府県別集計の読み込みに失敗しました:", err);
-        const list = document.getElementById("pref-list");
-        list.textContent = t("prefPanel.loadError");
+    prefBoundsIndex = new Map();
+    const summary = [];
+    for (const [pref, entry] of byPref.entries()) {
+      const cityCount = entry.codes.size;
+      let tokubetsuCount = 0;
+      for (const v of entry.codes.values()) {
+        if (v) tokubetsuCount++;
+      }
+      summary.push({
+        pref,
+        cityCount,
+        tokubetsuCount,
+        ratio: cityCount > 0 ? tokubetsuCount / cityCount : 0,
       });
+      prefBoundsIndex.set(pref, bboxOfFeatures(entry.features));
+    }
+
+    summary.sort((a, b) => b.cityCount - a.cityCount);
+    prefSummaryCache = summary;
+    renderPrefList();
   }
 
   function renderPrefList() {
@@ -2006,8 +2045,7 @@
       rowEl.appendChild(sub);
 
       const goto = () => {
-        const feats = prefFeatureIndex.get(row.pref) || [];
-        const bounds = bboxOfFeatures(feats);
+        const bounds = prefBoundsIndex.get(row.pref);
         if (bounds) {
           map.fitBounds(bounds, { padding: 60, duration: 600 });
         }
