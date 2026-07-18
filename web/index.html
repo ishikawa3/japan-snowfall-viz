@@ -2,8 +2,35 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>日本の豪雪地帯マップ(2016年度)</title>
+<meta
+  name="description"
+  content="国土数値情報「豪雪地帯データ」(A22-2016)をもとに、豪雪地帯・特別豪雪地帯の指定区域と気象観測点を地図上に可視化する静的Webアプリです。"
+/>
+<meta name="theme-color" content="#f9f9f7" />
+<link rel="canonical" href="https://ishikawa3.github.io/japan-snowfall-viz/" />
+
+<!-- Open Graph / Twitter(共有時のリンクプレビュー用) -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="日本の豪雪地帯マップ(2016年度)" />
+<meta
+  property="og:description"
+  content="豪雪地帯・特別豪雪地帯の指定区域と気象観測点(最深積雪・累計降雪量)を地図上に可視化。"
+/>
+<meta property="og:url" content="https://ishikawa3.github.io/japan-snowfall-viz/" />
+<meta property="og:locale" content="ja_JP" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="日本の豪雪地帯マップ(2016年度)" />
+<meta
+  name="twitter:description"
+  content="豪雪地帯・特別豪雪地帯の指定区域と気象観測点を地図上に可視化。"
+/>
+
+<!-- 外部オリジンへの接続を前倒し(初期表示の短縮) -->
+<link rel="preconnect" href="https://unpkg.com" crossorigin />
+<link rel="preconnect" href="https://cyberjapandata.gsi.go.jp" />
+<link rel="dns-prefetch" href="https://cyberjapandata.gsi.go.jp" />
 <link
   href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
   rel="stylesheet"
@@ -515,12 +542,94 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
     font-size: 13px;
     color: var(--text-secondary);
     background: var(--surface-1);
     border: 1px solid var(--border-hairline);
     border-radius: 8px;
+    padding: 14px 20px;
+    text-align: center;
+  }
+
+  .loading-spinner {
+    width: 22px;
+    height: 22px;
+    border: 2.5px solid var(--border-hairline);
+    border-top-color: var(--tokubetsu);
+    border-radius: 50%;
+    animation: loading-spin 0.8s linear infinite;
+  }
+
+  @keyframes loading-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* 失敗時はスピナーを隠し、再読み込みボタンを表示 */
+  #loading.is-error .loading-spinner {
+    display: none;
+  }
+
+  #loading-retry {
+    display: none;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--surface-1);
+    background: var(--tokubetsu);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  #loading.is-error #loading-retry {
+    display: inline-block;
+  }
+
+  /* キーボード操作時のフォーカス可視化(WCAG 2.4.7)。
+     要素の形状は変えず、outline のみでリングを表現する。 */
+  :focus-visible {
+    outline: 2px solid var(--tokubetsu);
+    outline-offset: 2px;
+  }
+
+  /* 動きに敏感なユーザー配慮(WCAG 2.3.3 / OSの設定を尊重) */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+    }
+  }
+
+  /* 一時通知(観測点データ読み込み失敗などの軽量フィードバック) */
+  #toast {
+    position: absolute;
+    z-index: 6;
+    left: 50%;
+    bottom: 28px;
+    transform: translateX(-50%) translateY(8px);
+    max-width: min(90vw, 420px);
     padding: 10px 16px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--surface-1);
+    background: rgba(11, 11, 11, 0.88);
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(11, 11, 11, 0.25);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 
   @media (max-width: 640px) {
@@ -657,6 +766,15 @@
 
 <div id="map"></div>
 
+<noscript>
+  <div style="position:absolute;z-index:10;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:system-ui,sans-serif;background:#f9f9f7;color:#0b0b0b;">
+    <p style="max-width:32em;line-height:1.7;">
+      この地図の表示には JavaScript が必要です。ブラウザの JavaScript を有効にしてください。<br />
+      <span style="color:#52514e;">This map requires JavaScript. Please enable JavaScript in your browser.</span>
+    </p>
+  </div>
+</noscript>
+
 <div id="title-panel" class="panel">
   <div id="title-panel-row">
     <h1 data-i18n="meta.title">日本の豪雪地帯マップ(2016年度)</h1>
@@ -757,7 +875,13 @@
   <span data-i18n="source.org">国土交通省</span>
 </div>
 
-<div id="loading" data-i18n="loading.text">地図データを読み込み中...</div>
+<div id="loading" role="status" aria-live="polite">
+  <div class="loading-spinner" aria-hidden="true"></div>
+  <span class="loading-text" data-i18n="loading.text">地図データを読み込み中...</span>
+  <button id="loading-retry" type="button" data-i18n="loading.retry">再読み込み</button>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
 
 <script>
   // ══════════════════════════════════════════════════════════════
@@ -779,6 +903,7 @@
         stationMaxdepth: "最深積雪(累年平均)",
         stationSnowfall: "累計降雪量(累年平均)",
         toggleAria: "レイヤー切替を開く",
+        stationLoadError: "観測点データの読み込みに失敗しました。",
       },
       legend: {
         panelHeading: "凡例",
@@ -826,6 +951,7 @@
       loading: {
         text: "地図データを読み込み中...",
         error: "地図データの読み込みに失敗しました。",
+        retry: "再読み込み",
       },
       lang: { buttonAria: "言語を選択" },
     },
@@ -844,6 +970,7 @@
         stationMaxdepth: "Max. Snow Depth (annual avg.)",
         stationSnowfall: "Total Snowfall (annual avg.)",
         toggleAria: "Open layer controls",
+        stationLoadError: "Failed to load station data.",
       },
       legend: {
         panelHeading: "Legend",
@@ -893,6 +1020,7 @@
       loading: {
         text: "Loading map data...",
         error: "Failed to load the map data.",
+        retry: "Reload",
       },
       lang: { buttonAria: "Select language" },
     },
@@ -911,6 +1039,7 @@
         stationMaxdepth: "最大积雪深度(历年平均)",
         stationSnowfall: "累计降雪量(历年平均)",
         toggleAria: "打开图层设置",
+        stationLoadError: "观测点数据加载失败。",
       },
       legend: {
         panelHeading: "图例",
@@ -958,6 +1087,7 @@
       loading: {
         text: "地图数据加载中...",
         error: "地图数据加载失败。",
+        retry: "重新加载",
       },
       lang: { buttonAria: "选择语言" },
     },
@@ -976,6 +1106,7 @@
         stationMaxdepth: "최심적설(누년평균)",
         stationSnowfall: "누계강설량(누년평균)",
         toggleAria: "레이어 설정 열기",
+        stationLoadError: "관측점 데이터를 불러오지 못했습니다.",
       },
       legend: {
         panelHeading: "범례",
@@ -1023,6 +1154,7 @@
       loading: {
         text: "지도 데이터를 불러오는 중...",
         error: "지도 데이터를 불러오지 못했습니다.",
+        retry: "다시 불러오기",
       },
       lang: { buttonAria: "언어 선택" },
     },
@@ -1410,6 +1542,25 @@
   // ══════════════════════════════════════════════════════════════
   // 地図本体
   // ══════════════════════════════════════════════════════════════
+  // 一時通知(トースト)。同時に複数出さず、一定時間で自動的に消える。
+  let toastTimer = null;
+  function showToast(msg) {
+    const el = document.getElementById("toast");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 4000);
+  }
+
+  // OSの「視差効果を減らす」設定を尊重するかの判定。
+  function prefersReducedMotion() {
+    return (
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+  }
+
   const map = new maplibregl.Map({
     container: "map",
     style: {
@@ -1439,6 +1590,8 @@
     zoom: 4.5,
     minZoom: 3,
     maxZoom: 12,
+    // URLハッシュに現在の位置・ズームを反映し、共有リンクで表示を再現可能にする
+    hash: true,
   });
 
   map.addControl(new maplibregl.NavigationControl(), "top-right");
@@ -1532,14 +1685,34 @@
     return gosetsuDataPromise;
   }
 
-  map.on("load", async () => {
+  // 多重実行ガード:再読み込みボタン連打や load イベントとの競合で
+  // addSource / addLayer が二重登録されるのを防ぐ。成功後は true のまま残し、
+  // 失敗時のみ false に戻して再試行を許可する。
+  let mapLoadRunning = false;
+
+  async function runMapLoad() {
+    if (mapLoadRunning) return;
+    mapLoadRunning = true;
+    const loadingEl = document.getElementById("loading");
+    const retryBtn = document.getElementById("loading-retry");
+    if (retryBtn) retryBtn.disabled = true;
     let gosetsuData;
     try {
       gosetsuData = await loadGosetsuData();
     } catch (err) {
       console.error("地図データの読み込みに失敗しました:", err);
-      const loadingEl = document.getElementById("loading");
-      if (loadingEl) loadingEl.textContent = t("loading.error");
+      if (loadingEl) {
+        loadingEl.classList.add("is-error");
+        const textEl = loadingEl.querySelector(".loading-text");
+        if (textEl) {
+          // data-i18n も切り替え、以後の言語切替(applyStaticI18n)でも
+          // エラー文言が維持されるようにする。
+          textEl.setAttribute("data-i18n", "loading.error");
+          textEl.textContent = t("loading.error");
+        }
+      }
+      if (retryBtn) retryBtn.disabled = false;
+      mapLoadRunning = false;
       return;
     }
 
@@ -1611,9 +1784,11 @@
     // ── 観測点(最深積雪 / 累計降雪量) ───────────────────────
     for (const key of Object.keys(STATION_LAYERS)) {
       const def = STATION_LAYERS[key];
+      // 観測点データは既定で非表示。初期表示を軽くするため空で追加し、
+      // 実データは初めて選択されたときに loadStationData() で取得する(遅延ロード)。
       map.addSource(def.source, {
         type: "geojson",
-        data: def.file,
+        data: { type: "FeatureCollection", features: [] },
       });
       map.addLayer({
         id: def.layer,
@@ -1702,7 +1877,29 @@
     fetchPrefData(gosetsuData);
     updateLegend();
     updateMapAttribution();
-  });
+
+    // 前回選択していた観測点レイヤーを復元(あれば遅延ロードも起動)
+    restoreStationMode();
+  }
+
+  map.on("load", runMapLoad);
+
+  const loadingRetryBtn = document.getElementById("loading-retry");
+  if (loadingRetryBtn) {
+    loadingRetryBtn.addEventListener("click", () => {
+      const loadingEl = document.getElementById("loading");
+      if (loadingEl) {
+        loadingEl.classList.remove("is-error");
+        const textEl = loadingEl.querySelector(".loading-text");
+        if (textEl) {
+          // data-i18n を読み込み中に戻し、言語切替でエラー文言が残らないようにする。
+          textEl.setAttribute("data-i18n", "loading.text");
+          textEl.textContent = t("loading.text");
+        }
+      }
+      runMapLoad();
+    });
+  }
 
   map.on("error", (e) => {
     console.error("Map error:", e && e.error);
@@ -1717,19 +1914,107 @@
     updateLegend();
   });
 
+  // 観測点データの遅延ロード状態。値: undefined(未) / Promise(取得中) / "loaded"
+  const stationLoadState = {};
+
+  function loadStationData(key) {
+    const def = STATION_LAYERS[key];
+    if (!def) return Promise.resolve();
+    if (stationLoadState[key] === "loaded") return Promise.resolve();
+    if (stationLoadState[key] instanceof Promise) return stationLoadState[key];
+    const p = fetch(def.file)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`${def.file}: HTTP ${res.status} ${res.statusText}`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        const src = map.getSource(def.source);
+        if (!src) {
+          // ソース未追加(地図ロード前に選択された等)。loaded にせず状態を戻し、
+          // ロード完了後の再適用で取得し直せるようにする。
+          stationLoadState[key] = undefined;
+          return;
+        }
+        src.setData(data);
+        stationLoadState[key] = "loaded";
+      })
+      .catch((err) => {
+        stationLoadState[key] = undefined; // 一時的な失敗後の再試行を許可
+        throw err;
+      });
+    stationLoadState[key] = p;
+    return p;
+  }
+
+  function applyStationMode(mode) {
+    for (const key of Object.keys(STATION_LAYERS)) {
+      const layerId = STATION_LAYERS[key].layer;
+      if (!map.getLayer(layerId)) continue;
+      map.setLayoutProperty(
+        layerId,
+        "visibility",
+        key === mode ? "visible" : "none"
+      );
+    }
+    updateLegend();
+    if (mode !== "none") {
+      loadStationData(mode).catch((err) => {
+        console.error("観測点データの読み込みに失敗しました:", err);
+        showToast(t("layers.stationLoadError"));
+        // 失敗が届いた時点で既に別モードへ切り替わっている場合は、現在の選択を
+        // 壊さないようロールバックしない(遅延した失敗レスポンス対策)。
+        const current = document.querySelector(
+          'input[name="station-mode"]:checked'
+        );
+        if (current && current.value !== mode) return;
+        // 選択を「なし」に戻す
+        const noneEl = document.querySelector(
+          'input[name="station-mode"][value="none"]'
+        );
+        if (noneEl) noneEl.checked = true;
+        try {
+          localStorage.setItem("stationMode", "none");
+        } catch (_) {
+          /* ignore */
+        }
+        applyStationMode("none");
+      });
+    }
+  }
+
+  function restoreStationMode() {
+    // 保存済みの選択があればラジオへ反映(取得できない環境では無視)。
+    let saved = null;
+    try {
+      saved = localStorage.getItem("stationMode");
+    } catch (_) {
+      /* ignore */
+    }
+    if (saved && STATION_LAYERS[saved]) {
+      const el = document.querySelector(
+        `input[name="station-mode"][value="${saved}"]`
+      );
+      if (el) el.checked = true;
+    }
+    // localStorage の可否に関わらず、現在 checked のモードを必ず反映する。
+    // (地図ロード前にユーザーが選択していたケースもここで取り込む)
+    const checked = document.querySelector(
+      'input[name="station-mode"]:checked'
+    );
+    applyStationMode(checked ? checked.value : "none");
+  }
+
   document.querySelectorAll('input[name="station-mode"]').forEach((el) => {
     el.addEventListener("change", (e) => {
       const mode = e.target.value;
-      for (const key of Object.keys(STATION_LAYERS)) {
-        const layerId = STATION_LAYERS[key].layer;
-        if (!map.getLayer(layerId)) continue;
-        map.setLayoutProperty(
-          layerId,
-          "visibility",
-          key === mode ? "visible" : "none"
-        );
+      try {
+        localStorage.setItem("stationMode", mode);
+      } catch (_) {
+        /* ignore */
       }
-      updateLegend();
+      applyStationMode(mode);
     });
   });
 
@@ -2047,7 +2332,10 @@
       const goto = () => {
         const bounds = prefBoundsIndex.get(row.pref);
         if (bounds) {
-          map.fitBounds(bounds, { padding: 60, duration: 600 });
+          map.fitBounds(bounds, {
+            padding: 60,
+            duration: prefersReducedMotion() ? 0 : 600,
+          });
         }
       };
       rowEl.addEventListener("click", goto);
