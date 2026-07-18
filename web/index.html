@@ -1685,8 +1685,17 @@
     return gosetsuDataPromise;
   }
 
+  // 多重実行ガード:再読み込みボタン連打や load イベントとの競合で
+  // addSource / addLayer が二重登録されるのを防ぐ。成功後は true のまま残し、
+  // 失敗時のみ false に戻して再試行を許可する。
+  let mapLoadRunning = false;
+
   async function runMapLoad() {
+    if (mapLoadRunning) return;
+    mapLoadRunning = true;
     const loadingEl = document.getElementById("loading");
+    const retryBtn = document.getElementById("loading-retry");
+    if (retryBtn) retryBtn.disabled = true;
     let gosetsuData;
     try {
       gosetsuData = await loadGosetsuData();
@@ -1697,6 +1706,8 @@
         const textEl = loadingEl.querySelector(".loading-text");
         if (textEl) textEl.textContent = t("loading.error");
       }
+      if (retryBtn) retryBtn.disabled = false;
+      mapLoadRunning = false;
       return;
     }
 
@@ -1911,7 +1922,13 @@
       })
       .then((data) => {
         const src = map.getSource(def.source);
-        if (src) src.setData(data);
+        if (!src) {
+          // ソース未追加(地図ロード前に選択された等)。loaded にせず状態を戻し、
+          // ロード完了後の再適用で取得し直せるようにする。
+          stationLoadState[key] = undefined;
+          return;
+        }
+        src.setData(data);
         stationLoadState[key] = "loaded";
       })
       .catch((err) => {
@@ -1953,20 +1970,25 @@
   }
 
   function restoreStationMode() {
+    // 保存済みの選択があればラジオへ反映(取得できない環境では無視)。
     let saved = null;
     try {
       saved = localStorage.getItem("stationMode");
     } catch (_) {
       /* ignore */
     }
-    if (!saved || !STATION_LAYERS[saved]) return;
-    const el = document.querySelector(
-      `input[name="station-mode"][value="${saved}"]`
-    );
-    if (el) {
-      el.checked = true;
-      applyStationMode(saved);
+    if (saved && STATION_LAYERS[saved]) {
+      const el = document.querySelector(
+        `input[name="station-mode"][value="${saved}"]`
+      );
+      if (el) el.checked = true;
     }
+    // localStorage の可否に関わらず、現在 checked のモードを必ず反映する。
+    // (地図ロード前にユーザーが選択していたケースもここで取り込む)
+    const checked = document.querySelector(
+      'input[name="station-mode"]:checked'
+    );
+    applyStationMode(checked ? checked.value : "none");
   }
 
   document.querySelectorAll('input[name="station-mode"]').forEach((el) => {
