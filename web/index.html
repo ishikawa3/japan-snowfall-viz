@@ -823,7 +823,10 @@
         org: "国土交通省",
         gsiTiles: "地理院タイル",
       },
-      loading: { text: "地図データを読み込み中..." },
+      loading: {
+        text: "地図データを読み込み中...",
+        error: "地図データの読み込みに失敗しました。",
+      },
       lang: { buttonAria: "言語を選択" },
     },
     en: {
@@ -887,7 +890,10 @@
         org: "Ministry of Land, Infrastructure, Transport and Tourism (MLIT), Japan",
         gsiTiles: "GSI Tiles",
       },
-      loading: { text: "Loading map data..." },
+      loading: {
+        text: "Loading map data...",
+        error: "Failed to load the map data.",
+      },
       lang: { buttonAria: "Select language" },
     },
     "zh-Hans": {
@@ -949,7 +955,10 @@
         org: "日本国土交通省",
         gsiTiles: "国土地理院地图瓦片",
       },
-      loading: { text: "地图数据加载中..." },
+      loading: {
+        text: "地图数据加载中...",
+        error: "地图数据加载失败。",
+      },
       lang: { buttonAria: "选择语言" },
     },
     ko: {
@@ -1011,7 +1020,10 @@
         org: "일본 국토교통성",
         gsiTiles: "국토지리원 타일",
       },
-      loading: { text: "지도 데이터를 불러오는 중..." },
+      loading: {
+        text: "지도 데이터를 불러오는 중...",
+        error: "지도 데이터를 불러오지 못했습니다.",
+      },
       lang: { buttonAria: "언어 선택" },
     },
   };
@@ -1375,11 +1387,7 @@
       syncTitleHeight();
       const nowMobile = isMobileView();
       if (nowMobile && !wasMobile) {
-        document.getElementById("pref-panel").classList.add("collapsed");
-        document.getElementById("legend-panel").classList.add("collapsed");
-        document.getElementById("title-panel").classList.remove("expanded");
-        document.getElementById("layer-switch-panel").classList.remove("open");
-        document.getElementById("lang-menu").classList.remove("open");
+        closeMobileOverlays();
       }
       wasMobile = nowMobile;
     });
@@ -1531,7 +1539,7 @@
     } catch (err) {
       console.error("地図データの読み込みに失敗しました:", err);
       const loadingEl = document.getElementById("loading");
-      if (loadingEl) loadingEl.textContent = t("prefPanel.loadError");
+      if (loadingEl) loadingEl.textContent = t("loading.error");
       return;
     }
 
