@@ -591,11 +591,11 @@
     display: inline-block;
   }
 
-  /* キーボード操作時のフォーカス可視化(WCAG 2.4.7) */
+  /* キーボード操作時のフォーカス可視化(WCAG 2.4.7)。
+     要素の形状は変えず、outline のみでリングを表現する。 */
   :focus-visible {
     outline: 2px solid var(--tokubetsu);
     outline-offset: 2px;
-    border-radius: 6px;
   }
 
   /* 動きに敏感なユーザー配慮(WCAG 2.3.3 / OSの設定を尊重) */
@@ -1963,6 +1963,12 @@
       loadStationData(mode).catch((err) => {
         console.error("観測点データの読み込みに失敗しました:", err);
         showToast(t("layers.stationLoadError"));
+        // 失敗が届いた時点で既に別モードへ切り替わっている場合は、現在の選択を
+        // 壊さないようロールバックしない(遅延した失敗レスポンス対策)。
+        const current = document.querySelector(
+          'input[name="station-mode"]:checked'
+        );
+        if (current && current.value !== mode) return;
         // 選択を「なし」に戻す
         const noneEl = document.querySelector(
           'input[name="station-mode"][value="none"]'
