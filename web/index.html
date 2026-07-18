@@ -1704,7 +1704,12 @@
       if (loadingEl) {
         loadingEl.classList.add("is-error");
         const textEl = loadingEl.querySelector(".loading-text");
-        if (textEl) textEl.textContent = t("loading.error");
+        if (textEl) {
+          // data-i18n も切り替え、以後の言語切替(applyStaticI18n)でも
+          // エラー文言が維持されるようにする。
+          textEl.setAttribute("data-i18n", "loading.error");
+          textEl.textContent = t("loading.error");
+        }
       }
       if (retryBtn) retryBtn.disabled = false;
       mapLoadRunning = false;
@@ -1886,7 +1891,11 @@
       if (loadingEl) {
         loadingEl.classList.remove("is-error");
         const textEl = loadingEl.querySelector(".loading-text");
-        if (textEl) textEl.textContent = t("loading.text");
+        if (textEl) {
+          // data-i18n を読み込み中に戻し、言語切替でエラー文言が残らないようにする。
+          textEl.setAttribute("data-i18n", "loading.text");
+          textEl.textContent = t("loading.text");
+        }
       }
       runMapLoad();
     });
