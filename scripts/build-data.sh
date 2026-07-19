@@ -89,15 +89,11 @@ echo "== mapshaper で全県結合・市区町村単位に統合・簡略化 =="
 # dissolveキーとする(同一市区町村でも区分が異なれば別フィーチャとして
 # 保持する)。
 
-# フィールドは地図で参照するもの(A22_002/003/006/007/008/009)のみ保持する。
-# A22_004(振興局)・A22_005(郡)は地図で未使用のため削除してファイルを軽量化する。
-# simplifyは1%まで落とすことで、gzip転送量を約1MB→約250KBに削減する
-# (全国〜県レベル表示では境界の見た目の劣化はほぼ生じない粒度)。
 npx -y mapshaper \
   -i "${RAW_DIR}"/A22-16_*.geojson combine-files -merge-layers force \
-  -filter-fields A22_002,A22_003,A22_006,A22_007,A22_008,A22_009 \
-  -dissolve A22_002,A22_009 copy-fields=A22_003,A22_006,A22_007,A22_008 \
-  -simplify 1% keep-shapes \
+  -filter-fields A22_002,A22_003,A22_004,A22_005,A22_006,A22_007,A22_008,A22_009 \
+  -dissolve A22_002,A22_009 copy-fields=A22_003,A22_004,A22_005,A22_006,A22_007,A22_008 \
+  -simplify 4% keep-shapes \
   -o "${OUT_FILE}" format=geojson precision=0.0001
 
 echo ""
