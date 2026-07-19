@@ -1662,6 +1662,10 @@
   }
 
   let hoveredFeatureId = null;
+  // クリック/タップで選択中のポリゴン。ハイライト(強調塗り+輪郭)は hover と
+  // selected のどちらでも表示する。タッチ端末では hover を使わないため、選択領域の
+  // 強調はこの selected 状態で駆動する。
+  let selectedFeatureId = null;
   let prefBoundsIndex = null; // Map<prefName, [[minX,minY],[maxX,maxY]]>
   let prefSummaryCache = null;
   let gosetsuDataPromise = null;
@@ -1739,7 +1743,11 @@
         ],
         "fill-opacity": [
           "case",
-          ["boolean", ["feature-state", "hover"], false],
+          [
+            "any",
+            ["boolean", ["feature-state", "hover"], false],
+            ["boolean", ["feature-state", "selected"], false],
+          ],
           0.8,
           0.58,
         ],
@@ -1773,7 +1781,11 @@
         "line-color": "#0b0b0b",
         "line-width": [
           "case",
-          ["boolean", ["feature-state", "hover"], false],
+          [
+            "any",
+            ["boolean", ["feature-state", "hover"], false],
+            ["boolean", ["feature-state", "selected"], false],
+          ],
           1.6,
           0,
         ],
@@ -1874,11 +1886,13 @@
     });
     popup.on("close", () => {
       activePopupRefresh = null;
+      clearSelectedFeature();
     });
 
     // ── クリック(ポリゴン) ───────────────────────────────
     map.on("click", "gosetsu-fill", (e) => {
       if (!e.features || e.features.length === 0) return;
+      selectFeature(e.features[0].id);
       showPolygonPopup(e.features[0], e.lngLat);
     });
 
@@ -2115,6 +2129,31 @@
 
   function popupMaxWidth() {
     return Math.min(window.innerWidth - 32, 300) + "px";
+  }
+
+  // クリック/タップで選択したポリゴンに selected 状態を付与する。既存の選択は
+  // 解除してから付け替える。selected は fill-opacity と輪郭のハイライトを駆動する。
+  function selectFeature(id) {
+    if (selectedFeatureId !== null && selectedFeatureId !== id) {
+      map.setFeatureState(
+        { source: "gosetsu", id: selectedFeatureId },
+        { selected: false }
+      );
+    }
+    selectedFeatureId = id;
+    if (id !== null && id !== undefined) {
+      map.setFeatureState({ source: "gosetsu", id }, { selected: true });
+    }
+  }
+
+  function clearSelectedFeature() {
+    if (selectedFeatureId !== null) {
+      map.setFeatureState(
+        { source: "gosetsu", id: selectedFeatureId },
+        { selected: false }
+      );
+      selectedFeatureId = null;
+    }
   }
 
   function showPolygonPopup(feature, lngLat) {
