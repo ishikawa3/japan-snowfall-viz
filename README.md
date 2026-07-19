@@ -4,6 +4,13 @@
 豪雪地帯・特別豪雪地帯として指定された市区町村の区域を、MapLibre GL JS + 地理院タイルの地図上に色分け表示します。
 あわせて「豪雪地帯データ(気象データ等)」(A22-m-14) の気象観測点(最深積雪・累計降雪量)をポイント表示できます。
 
+## 公開URL(デモ)
+
+**https://ishikawa3.github.io/japan-snowfall-viz/**
+
+`main` ブランチへの push で GitHub Actions が `web/` を GitHub Pages に自動デプロイします
+(`.github/workflows/deploy-pages.yml`)。
+
 ## データ出典・利用規約
 
 - データ: [国土数値情報 豪雪地帯データ(A22-2016)](https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-2016.html) 国土交通省
