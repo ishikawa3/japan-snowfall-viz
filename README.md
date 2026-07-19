@@ -89,6 +89,10 @@ python3 -m http.server 8000
 
 ## 属性スキーマ(A22-2016)
 
+下表は**元データ(A22-2016)の全フィールド**です。生成物 `web/data/gosetsu.geojson` は
+`build-data.sh` の `-filter-fields`・`-dissolve` により一部フィールド(例: A22_001)を
+含みません。
+
 | フィールド | 内容 |
 |---|---|
 | A22_001 | 豪雪地帯ID |

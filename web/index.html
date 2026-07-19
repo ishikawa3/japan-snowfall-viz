@@ -1810,13 +1810,20 @@
     document.getElementById("loading").remove();
 
     // ── ホバー(ポリゴン) ───────────────────────────────
-    // ホバー演出はマウス等のポインタ端末のみで有効化する。タッチ端末で
-    // mousemove の合成イベントによる hover 状態変更を行うと、1回目のタップが
-    // 「:hover の発生」に消費され click が2回目まで発火しない(ポップアップが
+    // ホバー演出はマウス等のポインタ端末が存在する場合のみ有効化する。純タッチ
+    // 端末で mousemove の合成イベントによる hover 状態変更を行うと、1回目のタップ
+    // が「:hover の発生」に消費され click が2回目まで発火しない(ポップアップが
     // 2回タップしないと出ない)問題が起きるため。
+    //
+    // 判定は any-hover / any-pointer を優先する。hover / pointer は「主入力デバイス」
+    // 基準のため、タッチが主のマウス併用端末(2-in-1 等)ではマウス操作でも false に
+    // なってしまう。any-* は「いずれかの入力がホバー可能か」を見るのでマウス併用時に
+    // ホバーを維持できる。any-* 非対応ブラウザ向けに従来クエリをフォールバックにする。
+    const matchesMedia = (q) =>
+      typeof window.matchMedia === "function" && window.matchMedia(q).matches;
     const canHover =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+      matchesMedia("(any-hover: hover) and (any-pointer: fine)") ||
+      matchesMedia("(hover: hover) and (pointer: fine)");
 
     if (canHover) {
       map.on("mouseenter", "gosetsu-fill", () => {
