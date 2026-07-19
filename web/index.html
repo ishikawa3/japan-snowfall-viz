@@ -1810,44 +1810,54 @@
     document.getElementById("loading").remove();
 
     // ── ホバー(ポリゴン) ───────────────────────────────
-    map.on("mouseenter", "gosetsu-fill", () => {
-      map.getCanvas().style.cursor = "pointer";
-    });
+    // ホバー演出はマウス等のポインタ端末のみで有効化する。タッチ端末で
+    // mousemove の合成イベントによる hover 状態変更を行うと、1回目のタップが
+    // 「:hover の発生」に消費され click が2回目まで発火しない(ポップアップが
+    // 2回タップしないと出ない)問題が起きるため。
+    const canHover =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
-    map.on("mousemove", "gosetsu-fill", (e) => {
-      if (!e.features || e.features.length === 0) return;
-      const feature = e.features[0];
-      if (feature.id === hoveredFeatureId) return;
-      const id = feature.id;
-      if (hoveredFeatureId !== null && hoveredFeatureId !== id) {
-        map.setFeatureState(
-          { source: "gosetsu", id: hoveredFeatureId },
-          { hover: false }
-        );
-      }
-      hoveredFeatureId = id;
-      map.setFeatureState({ source: "gosetsu", id }, { hover: true });
-    });
-
-    map.on("mouseleave", "gosetsu-fill", () => {
-      map.getCanvas().style.cursor = "";
-      if (hoveredFeatureId !== null) {
-        map.setFeatureState(
-          { source: "gosetsu", id: hoveredFeatureId },
-          { hover: false }
-        );
-      }
-      hoveredFeatureId = null;
-    });
-
-    for (const key of Object.keys(STATION_LAYERS)) {
-      const layerId = STATION_LAYERS[key].layer;
-      map.on("mouseenter", layerId, () => {
+    if (canHover) {
+      map.on("mouseenter", "gosetsu-fill", () => {
         map.getCanvas().style.cursor = "pointer";
       });
-      map.on("mouseleave", layerId, () => {
-        map.getCanvas().style.cursor = "";
+
+      map.on("mousemove", "gosetsu-fill", (e) => {
+        if (!e.features || e.features.length === 0) return;
+        const feature = e.features[0];
+        if (feature.id === hoveredFeatureId) return;
+        const id = feature.id;
+        if (hoveredFeatureId !== null && hoveredFeatureId !== id) {
+          map.setFeatureState(
+            { source: "gosetsu", id: hoveredFeatureId },
+            { hover: false }
+          );
+        }
+        hoveredFeatureId = id;
+        map.setFeatureState({ source: "gosetsu", id }, { hover: true });
       });
+
+      map.on("mouseleave", "gosetsu-fill", () => {
+        map.getCanvas().style.cursor = "";
+        if (hoveredFeatureId !== null) {
+          map.setFeatureState(
+            { source: "gosetsu", id: hoveredFeatureId },
+            { hover: false }
+          );
+        }
+        hoveredFeatureId = null;
+      });
+
+      for (const key of Object.keys(STATION_LAYERS)) {
+        const layerId = STATION_LAYERS[key].layer;
+        map.on("mouseenter", layerId, () => {
+          map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", layerId, () => {
+          map.getCanvas().style.cursor = "";
+        });
+      }
     }
 
     popup = new maplibregl.Popup({
