@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>日本の豪雪 3Dビュー(Three.js / WebGL)</title>
+<meta
+  name="description"
+  content="国土数値情報「豪雪地帯データ」(A22-2016 / A22-m-14)をもとに、気象観測点の最深積雪・累計降雪量を Three.js + WebGL の3Dカラムとして立体表示する静的Webアプリです。"
+/>
+<meta name="theme-color" content="#0b1020" />
+<link rel="canonical" href="https://ishikawa3.github.io/japan-snowfall-viz/3d.html" />
+
+<!-- Open Graph / Twitter -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="日本の豪雪 3Dビュー(Three.js / WebGL)" />
+<meta
+  property="og:description"
+  content="気象観測点の最深積雪・累計降雪量を3Dカラムとして立体表示。マウスで回転・ズームできます。"
+/>
+<meta property="og:url" content="https://ishikawa3.github.io/japan-snowfall-viz/3d.html" />
+<meta property="og:locale" content="ja_JP" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="日本の豪雪 3Dビュー(Three.js / WebGL)" />
+<meta
+  name="twitter:description"
+  content="気象観測点の最深積雪・累計降雪量を3Dカラムとして立体表示。"
+/>
+
+<style>
+  :root {
+    --bg: #0b1020;
+    --surface: rgba(17, 24, 44, 0.82);
+    --surface-solid: #11182c;
+    --text-primary: #eaf1ff;
+    --text-secondary: #a9b6d6;
+    --text-muted: #6c7aa0;
+    --border: rgba(160, 180, 230, 0.18);
+    --accent: #5ec8e8;
+    --title-h: 60px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
+      "Yu Gothic", sans-serif;
+    color: var(--text-primary);
+    background: var(--bg);
+  }
+
+  #scene { position: absolute; inset: 0; display: block; }
+
+  .panel {
+    position: absolute;
+    z-index: 2;
+    background: var(--surface);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  /* --- タイトル(左上) --- */
+  #title-panel {
+    top: 12px;
+    left: 12px;
+    padding: 14px 16px;
+    max-width: 320px;
+  }
+  #title-panel h1 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.35;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #title-panel h1 .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    flex: 0 0 auto;
+  }
+  #title-panel p {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+  #title-panel a { color: var(--accent); text-decoration: none; }
+  #title-panel a:hover { text-decoration: underline; }
+  .tp-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  #lang-select {
+    flex: 0 0 auto;
+    appearance: none;
+    background: var(--surface-solid);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: 12px;
+    padding: 4px 6px;
+    cursor: pointer;
+  }
+  .tp-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 10px;
+    font-size: 12px;
+  }
+  #share-btn {
+    appearance: none;
+    background: rgba(94, 200, 232, 0.14);
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  #share-btn:hover { background: rgba(94, 200, 232, 0.24); }
+
+  #pref-select {
+    width: 100%;
+    appearance: none;
+    background: var(--surface-solid);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+    padding: 7px 8px;
+    cursor: pointer;
+  }
+
+  /* --- コピー通知トースト --- */
+  #toast {
+    position: absolute;
+    z-index: 8;
+    left: 50%;
+    bottom: 28px;
+    transform: translateX(-50%) translateY(8px);
+    background: var(--surface-solid);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-size: 12.5px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* --- コントロール(右上) --- */
+  #controls {
+    top: 12px;
+    right: 12px;
+    padding: 12px 14px;
+    width: 220px;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+  #controls .group { margin-bottom: 14px; }
+  #controls .group:last-child { margin-bottom: 0; }
+  #controls .label {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .seg {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .seg button {
+    flex: 1;
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    padding: 7px 4px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button:hover { background: rgba(94, 200, 232, 0.10); }
+  .seg button.active {
+    background: rgba(94, 200, 232, 0.22);
+    color: var(--text-primary);
+    font-weight: 600;
+  }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+  .check input { accent-color: var(--accent); width: 15px; height: 15px; }
+
+  /* --- スライダー --- */
+  .slider-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .slider-row .val {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 3px;
+    background: rgba(160, 180, 230, 0.25);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(94, 200, 232, 0.6);
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 15px; height: 15px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  /* --- 凡例(左下) --- */
+  #legend {
+    left: 12px;
+    bottom: 12px;
+    padding: 12px 14px;
+    width: 240px;
+  }
+  #legend .label {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+  #legend .bar {
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(90deg,
+      #14357a 0%, #2f7ad1 40%, #5ec8e8 70%, #f0fbff 100%);
+  }
+  #legend .ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  #legend .note {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* --- ツールチップ --- */
+  #tooltip {
+    position: absolute;
+    z-index: 5;
+    pointer-events: none;
+    background: var(--surface-solid);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.5;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    transition: opacity 0.12s;
+    max-width: 240px;
+  }
+  #tooltip.show { opacity: 1; }
+  #tooltip .tt-name { font-weight: 700; margin-bottom: 2px; }
+  #tooltip .tt-val {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+  #tooltip .tt-sub { color: var(--text-muted); font-size: 11px; }
+
+  /* --- 選択詳細パネル --- */
+  #detail {
+    right: 12px;
+    bottom: 58px;
+    padding: 14px 16px 14px;
+    width: 260px;
+    display: none;
+  }
+  #detail.show { display: block; }
+  #detail .close {
+    position: absolute;
+    top: 8px; right: 10px;
+    width: 22px; height: 22px;
+    border: 0; background: transparent;
+    color: var(--text-muted);
+    font-size: 18px; line-height: 1;
+    cursor: pointer;
+  }
+  #detail .close:hover { color: var(--text-primary); }
+  #detail .d-name {
+    font-size: 15px; font-weight: 700;
+    margin: 0 20px 2px 0; line-height: 1.35;
+  }
+  #detail .d-sub {
+    font-size: 11px; color: var(--text-muted);
+    line-height: 1.5; margin-bottom: 10px;
+  }
+  #detail table { width: 100%; border-collapse: collapse; }
+  #detail td {
+    padding: 4px 0;
+    font-size: 12px;
+    border-top: 1px solid var(--border);
+  }
+  #detail td.k { color: var(--text-secondary); }
+  #detail .chip {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 5px;
+    font-size: 9.5px;
+    line-height: 1.4;
+    border-radius: 4px;
+    background: rgba(94, 200, 232, 0.18);
+    color: var(--accent);
+    vertical-align: middle;
+  }
+  #detail td.v {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  #detail td.v.hl { color: var(--accent); }
+
+  /* --- ローディング --- */
+  #loading {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--bg);
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
+  #loading.hide { display: none; }
+  .spinner {
+    width: 34px; height: 34px;
+    border: 3px solid rgba(94, 200, 232, 0.25);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* --- フッター（出典） --- */
+  #credit {
+    right: 12px;
+    bottom: 12px;
+    padding: 8px 12px;
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    max-width: 300px;
+  }
+  #credit a { color: var(--text-secondary); text-decoration: none; }
+  #credit a:hover { text-decoration: underline; }
+
+  @media (max-width: 640px) {
+    #title-panel { max-width: calc(100vw - 24px); }
+    #controls { width: 180px; }
+    #legend { width: calc(100vw - 24px); }
+    #credit { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="title-panel" class="panel">
+  <div class="tp-head">
+    <h1><span class="dot"></span><span data-i18n="title">日本の豪雪 3Dビュー</span></h1>
+    <select id="lang-select" aria-label="Language">
+      <option value="ja">日本語</option>
+      <option value="en">English</option>
+      <option value="zh-Hans">简体中文</option>
+      <option value="ko">한국어</option>
+    </select>
+  </div>
+  <p data-i18n="desc">
+    気象観測点の積雪データを高さで立体化しています。ドラッグで回転、
+    ホイール/ピンチでズーム。マウスを乗せると観測点の詳細を表示します。
+  </p>
+  <div class="tp-actions">
+    <a href="./index.html" data-i18n="link2d">← 2D地図版を見る</a>
+    <button id="share-btn" data-i18n="share">🔗 共有リンク</button>
+  </div>
+</div>
+
+<div id="controls" class="panel">
+  <div class="group">
+    <div class="label" data-i18n="lbl_dataset">データセット</div>
+    <div class="seg" id="seg-dataset">
+      <button data-ds="maxdepth" class="active" data-i18n="ds_maxdepth">最深積雪</button>
+      <button data-ds="snowfall" data-i18n="ds_snowfall">累計降雪量</button>
+    </div>
+  </div>
+  <div class="group">
+    <div class="label" data-i18n="lbl_height">高さの指標 ↕</div>
+    <div class="seg" id="seg-height">
+      <button data-metric="avg" class="active" data-i18n="m_avg">累年平均</button>
+      <button data-metric="max" data-i18n="m_max">累年最大</button>
+      <button data-metric="latest" data-i18n="m_latest">最新年</button>
+    </div>
+  </div>
+  <div class="group">
+    <div class="label" data-i18n="lbl_color">色の指標 ●</div>
+    <div class="seg" id="seg-color">
+      <button data-metric="avg" class="active" data-i18n="m_avg">累年平均</button>
+      <button data-metric="max" data-i18n="m_max">累年最大</button>
+      <button data-metric="latest" data-i18n="m_latest">最新年</button>
+    </div>
+  </div>
+  <div class="group">
+    <div class="slider-row">
+      <div class="label" style="margin-bottom:0" data-i18n="lbl_filter">高さフィルタ</div>
+      <div class="val"><span id="thr-val">0</span> <span id="thr-unit">cm 以上</span></div>
+    </div>
+    <input type="range" id="thr" min="0" max="100" value="0" step="1" />
+  </div>
+  <div class="group">
+    <div class="label" data-i18n="lbl_pref">都道府県</div>
+    <select id="pref-select"><option value="all" data-i18n="pref_all">すべて</option></select>
+  </div>
+  <div class="group">
+    <div class="label" data-i18n="lbl_regions">指定区域</div>
+    <div class="seg" id="seg-regions">
+      <button data-mode="none" data-i18n="r_none">なし</button>
+      <button data-mode="outline" class="active" data-i18n="r_outline">アウトライン</button>
+      <button data-mode="filled" data-i18n="r_filled">塗り分け</button>
+    </div>
+  </div>
+  <div class="group">
+    <div class="label" data-i18n="lbl_view">視点(カメラ)</div>
+    <div class="seg" id="seg-view">
+      <button data-view="all" class="active" data-i18n="v_all">全体</button>
+      <button data-view="hokkaido" data-i18n="v_hokkaido">北海道</button>
+      <button data-view="tohoku" data-i18n="v_tohoku">東北</button>
+      <button data-view="hokuriku" data-i18n="v_hokuriku">北陸</button>
+    </div>
+  </div>
+  <div class="group">
+    <label class="check">
+      <input type="checkbox" id="chk-rotate" />
+      <span data-i18n="rotate">自動回転</span>
+    </label>
+  </div>
+</div>
+
+<div id="legend" class="panel">
+  <div class="label" id="legend-title">最深積雪・累年平均 (cm)</div>
+  <div class="bar"></div>
+  <div class="ticks"><span id="tick-min">0</span><span id="tick-mid">—</span><span id="tick-max">—</span></div>
+  <div class="note" id="legend-height">↕ 高さ: —</div>
+  <div class="note" id="legend-count">— 地点</div>
+</div>
+
+<div id="tooltip">
+  <div class="tt-name"></div>
+  <div class="tt-val"></div>
+  <div class="tt-sub"></div>
+</div>
+
+<div id="detail" class="panel">
+  <button class="close" id="detail-close" aria-label="Close">×</button>
+  <div class="d-name"></div>
+  <div class="d-sub"></div>
+  <table>
+    <tbody id="detail-rows"></tbody>
+  </table>
+</div>
+
+<div id="credit" class="panel"></div>
+
+<div id="toast" role="status"></div>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loading-text">データを読み込んでいます…</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ---------------------------------------------------------------------------
+// 定数・状態
+// ---------------------------------------------------------------------------
+const MAP_WIDTH = 130;          // 投影後の地図の目標横幅(ワールド単位)
+const TARGET_MAX_HEIGHT = 46;   // 最も高いカラムの目標高さ
+const BAR_RADIUS = 0.34;        // カラムの半径
+
+const state = {
+  dataset: "maxdepth",     // "maxdepth" | "snowfall"
+  heightMetric: "avg",     // カラムの高さに使う指標 "avg" | "max" | "latest"
+  colorMetric: "avg",      // カラムの色に使う指標 "avg" | "max" | "latest"
+  regionMode: "outline",   // "none" | "outline" | "filled"
+  threshold: 0,            // 高さフィルタ(高さ指標がこの値[cm]以上のみ表示)
+  pref: "all",             // 都道府県フィルタ("all" または都道府県名)
+  view: "all",             // カメラプリセット
+  sel: null,               // 選択中観測点のインデックス(deep-link用)
+  autoRotate: false,
+};
+
+// カメラプリセット(経度・緯度・距離)
+const VIEWS = {
+  all:      null, // 全体表示(俯瞰)
+  hokkaido: { lon: 142.8, lat: 43.4, dist: 66 },
+  tohoku:   { lon: 140.6, lat: 39.5, dist: 60 },
+  hokuriku: { lon: 137.6, lat: 36.9, dist: 52 },
+};
+
+// 指定区域の塗り分け色(2D版のパレットに合わせる)
+const REGION_FILL = { "1": 0x86b6ef, "2": 0x1c5cab };  // 豪雪地帯 / 特別豪雪地帯
+// 選択ハイライト色(寒色ランプと対比する暖色)
+const HIGHLIGHT = 0xffb454;
+
+// 都道府県の標準並び順(JISコード順。存在するもののみ表示)
+const PREF_ORDER = [
+  "北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県",
+  "埼玉県","千葉県","東京都","神奈川県","新潟県","富山県","石川県","福井県","山梨県","長野県",
+  "岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県",
+  "鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県",
+  "佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県",
+];
+
+// ------------------------------ 多言語 (i18n) ------------------------------
+let lang = "ja";
+const I18N = {
+  ja: {
+    title: "日本の豪雪 3Dビュー",
+    desc: "気象観測点の積雪データを高さで立体化しています。ドラッグで回転、ホイール/ピンチでズーム。マウスを乗せると観測点の詳細を表示します。",
+    link2d: "← 2D地図版を見る", share: "🔗 共有リンク", copied: "リンクをコピーしました", close: "閉じる",
+    lbl_dataset: "データセット", ds_maxdepth: "最深積雪", ds_snowfall: "累計降雪量",
+    lbl_height: "高さの指標 ↕", lbl_color: "色の指標 ●",
+    m_avg: "累年平均", m_max: "累年最大", m_latest: "最新年",
+    lbl_filter: "高さフィルタ", filter_unit: "cm 以上",
+    lbl_pref: "都道府県", pref_all: "すべて",
+    lbl_regions: "指定区域", r_none: "なし", r_outline: "アウトライン", r_filled: "塗り分け",
+    lbl_view: "視点(カメラ)", v_all: "全体", v_hokkaido: "北海道", v_tohoku: "東北", v_hokuriku: "北陸",
+    rotate: "自動回転",
+    legend_color: "色", legend_height: "高さ", unit_cm: "cm", max: "最大", points: "地点", filtering: "フィルタ中",
+    years: "観測年数", yearUnit: "年", fySuffix: "年度", chip_h: "↕高さ", chip_c: "●色",
+    loading: "データを読み込んでいます…", errPrefix: "データの読み込みに失敗しました: ",
+    credit: 'データ: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">国土数値情報 豪雪地帯データ(気象データ等)A22-m-14</a> / A22-2016(国土交通省)。可視化: Three.js + WebGL。',
+  },
+  en: {
+    title: "Japan Heavy-Snow 3D View",
+    desc: "Weather-station snow data extruded by height. Drag to rotate, wheel/pinch to zoom. Hover a column for station details.",
+    link2d: "← 2D map view", share: "🔗 Share link", copied: "Link copied", close: "Close",
+    lbl_dataset: "Dataset", ds_maxdepth: "Max snow depth", ds_snowfall: "Cumulative snowfall",
+    lbl_height: "Height metric ↕", lbl_color: "Color metric ●",
+    m_avg: "Multi-year avg", m_max: "Multi-year max", m_latest: "Latest year",
+    lbl_filter: "Height filter", filter_unit: "cm and up",
+    lbl_pref: "Prefecture", pref_all: "All",
+    lbl_regions: "Designated areas", r_none: "None", r_outline: "Outline", r_filled: "Filled",
+    lbl_view: "Camera", v_all: "Overview", v_hokkaido: "Hokkaido", v_tohoku: "Tohoku", v_hokuriku: "Hokuriku",
+    rotate: "Auto-rotate",
+    legend_color: "Color", legend_height: "Height", unit_cm: "cm", max: "max", points: "stations", filtering: "filtered",
+    years: "Years observed", yearUnit: " yr", fySuffix: " FY", chip_h: "↕H", chip_c: "●C",
+    loading: "Loading data…", errPrefix: "Failed to load data: ",
+    credit: 'Data: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">MLIT National Land Numerical Information A22-m-14</a> / A22-2016 (MLIT Japan). Visualization: Three.js + WebGL.',
+  },
+  "zh-Hans": {
+    title: "日本豪雪 3D 视图",
+    desc: "将气象观测点的积雪数据以高度立体化。拖动旋转,滚轮/双指缩放。悬停查看观测点详情。",
+    link2d: "← 查看 2D 地图版", share: "🔗 分享链接", copied: "已复制链接", close: "关闭",
+    lbl_dataset: "数据集", ds_maxdepth: "最大积雪深", ds_snowfall: "累计降雪量",
+    lbl_height: "高度指标 ↕", lbl_color: "颜色指标 ●",
+    m_avg: "累年平均", m_max: "累年最大", m_latest: "最新年度",
+    lbl_filter: "高度筛选", filter_unit: "cm 以上",
+    lbl_pref: "都道府县", pref_all: "全部",
+    lbl_regions: "指定区域", r_none: "无", r_outline: "轮廓", r_filled: "填色",
+    lbl_view: "视角(相机)", v_all: "全景", v_hokkaido: "北海道", v_tohoku: "东北", v_hokuriku: "北陆",
+    rotate: "自动旋转",
+    legend_color: "颜色", legend_height: "高度", unit_cm: "cm", max: "最大", points: "个观测点", filtering: "筛选中",
+    years: "观测年数", yearUnit: " 年", fySuffix: " 年度", chip_h: "↕高", chip_c: "●色",
+    loading: "正在加载数据…", errPrefix: "数据加载失败: ",
+    credit: '数据: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">国土数值信息 豪雪地带数据(气象数据等)A22-m-14</a> / A22-2016(日本国土交通省)。可视化: Three.js + WebGL。',
+  },
+  ko: {
+    title: "일본 폭설 3D 뷰",
+    desc: "기상 관측점의 적설 데이터를 높이로 입체화합니다. 드래그로 회전, 휠/핀치로 확대·축소. 관측점에 마우스를 올리면 상세정보를 표시합니다.",
+    link2d: "← 2D 지도 버전 보기", share: "🔗 공유 링크", copied: "링크를 복사했습니다", close: "닫기",
+    lbl_dataset: "데이터셋", ds_maxdepth: "최심 적설", ds_snowfall: "누적 강설량",
+    lbl_height: "높이 지표 ↕", lbl_color: "색 지표 ●",
+    m_avg: "누년 평균", m_max: "누년 최대", m_latest: "최근 연도",
+    lbl_filter: "높이 필터", filter_unit: "cm 이상",
+    lbl_pref: "도도부현", pref_all: "전체",
+    lbl_regions: "지정 구역", r_none: "없음", r_outline: "윤곽선", r_filled: "채색",
+    lbl_view: "시점(카메라)", v_all: "전체", v_hokkaido: "홋카이도", v_tohoku: "도호쿠", v_hokuriku: "호쿠리쿠",
+    rotate: "자동 회전",
+    legend_color: "색", legend_height: "높이", unit_cm: "cm", max: "최대", points: "지점", filtering: "필터 중",
+    years: "관측 연수", yearUnit: " 년", fySuffix: " 연도", chip_h: "↕높이", chip_c: "●색",
+    loading: "데이터를 불러오는 중…", errPrefix: "데이터 로드 실패: ",
+    credit: '데이터: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">국토수치정보 폭설지대 데이터(기상데이터 등) A22-m-14</a> / A22-2016 (일본 국토교통성). 시각화: Three.js + WebGL.',
+  },
+};
+function t(key) { return (I18N[lang] && I18N[lang][key]) || I18N.ja[key] || key; }
+function dsLabel(ds) { return t(ds === "maxdepth" ? "ds_maxdepth" : "ds_snowfall"); }
+function metricLabel(m) { return t("m_" + m); }
+
+// 色ランプ(寒色 → 氷白)。低い値=深いブルー、高い値=氷白。
+const RAMP = [
+  { t: 0.0, c: [0x14, 0x35, 0x7a] },
+  { t: 0.4, c: [0x2f, 0x7a, 0xd1] },
+  { t: 0.7, c: [0x5e, 0xc8, 0xe8] },
+  { t: 1.0, c: [0xf0, 0xfb, 0xff] },
+];
+function rampColor(t, out) {
+  t = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < RAMP.length; i++) {
+    if (t <= RAMP[i].t) {
+      const a = RAMP[i - 1], b = RAMP[i];
+      const f = (t - a.t) / (b.t - a.t || 1);
+      out.setRGB(
+        (a.c[0] + (b.c[0] - a.c[0]) * f) / 255,
+        (a.c[1] + (b.c[1] - a.c[1]) * f) / 255,
+        (a.c[2] + (b.c[2] - a.c[2]) * f) / 255,
+        THREE.SRGBColorSpace
+      );
+      return out;
+    }
+  }
+  out.setRGB(RAMP[3].c[0] / 255, RAMP[3].c[1] / 255, RAMP[3].c[2] / 255, THREE.SRGBColorSpace);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// three.js セットアップ
+// ---------------------------------------------------------------------------
+const canvas = document.getElementById("scene");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b1020);
+scene.fog = new THREE.Fog(0x0b1020, 160, 340);
+
+const camera = new THREE.PerspectiveCamera(
+  50, window.innerWidth / window.innerHeight, 0.1, 2000
+);
+camera.position.set(0, 90, 120);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.49;   // 地面より下に回り込まない
+controls.minDistance = 20;
+controls.maxDistance = 320;
+controls.autoRotateSpeed = 0.5;
+
+// ライト
+scene.add(new THREE.HemisphereLight(0xbcd4ff, 0x0a0f1e, 0.9));
+const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+dir.position.set(60, 120, 40);
+scene.add(dir);
+
+// 地面グリッド
+const grid = new THREE.GridHelper(MAP_WIDTH * 1.6, 40, 0x22304f, 0x18223a);
+grid.position.y = -0.02;
+scene.add(grid);
+
+// ---------------------------------------------------------------------------
+// 投影(経度緯度 → ワールドXZ 平面)
+// ---------------------------------------------------------------------------
+let proj = null; // { lon0, lat0, k }
+function project(lon, lat) {
+  const x = (lon - proj.lon0) * Math.cos((proj.lat0 * Math.PI) / 180) * proj.k;
+  const z = -(lat - proj.lat0) * proj.k; // 北を -Z(画面奥)へ
+  return [x, z];
+}
+
+function computeProjection(bounds) {
+  const { minLon, maxLon, minLat, maxLat } = bounds;
+  const lon0 = (minLon + maxLon) / 2;
+  const lat0 = (minLat + maxLat) / 2;
+  const lonSpan = (maxLon - minLon) * Math.cos((lat0 * Math.PI) / 180);
+  const k = MAP_WIDTH / (lonSpan || 1);
+  proj = { lon0, lat0, k };
+}
+
+// ---------------------------------------------------------------------------
+// データ読み込み
+// ---------------------------------------------------------------------------
+const datasets = {};    // ds -> [観測点オブジェクト]
+let regionOutline = null;   // LineSegments(アウトライン)
+let regionFilled = null;    // Group(塗り分け面)
+let prefsPresent = [];      // データ中に存在する都道府県(PREF_ORDER順)
+
+// 都道府県判定用インデックス(経度緯度・bbox・外周/穴リング)
+let prefIndex = [];
+function buildPrefIndex(gosetsu) {
+  prefIndex = gosetsu.features.map((f) => {
+    const pref = f.properties && f.properties.A22_003;
+    const g = f.geometry;
+    const polys = g.type === "MultiPolygon" ? g.coordinates
+      : g.type === "Polygon" ? [g.coordinates] : [];
+    let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+    for (const poly of polys) for (const [x, y] of poly[0]) {
+      if (x < minx) minx = x; if (x > maxx) maxx = x;
+      if (y < miny) miny = y; if (y > maxy) maxy = y;
+    }
+    return { pref, bbox: [minx, miny, maxx, maxy], polys };
+  });
+}
+function ringContains(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if ((yi > y) !== (yj > y) &&
+        x < ((xj - xi) * (y - yi)) / (yj - yi || 1e-12) + xi) inside = !inside;
+  }
+  return inside;
+}
+function assignPref(lon, lat) {
+  for (const f of prefIndex) {
+    const [mnx, mny, mxx, mxy] = f.bbox;
+    if (lon < mnx || lon > mxx || lat < mny || lat > mxy) continue;
+    for (const poly of f.polys) {
+      if (ringContains(lon, lat, poly[0])) {
+        let inHole = false;
+        for (let h = 1; h < poly.length; h++)
+          if (ringContains(lon, lat, poly[h])) { inHole = true; break; }
+        if (!inHole) return f.pref;
+      }
+    }
+  }
+  return null;
+}
+
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} (HTTP ${r.status} ${r.statusText})`);
+  return r.json();
+}
+
+async function loadAll() {
+  const [maxdepth, snowfall, gosetsu] = await Promise.all([
+    getJSON("./data/stations_maxdepth.geojson"),
+    getJSON("./data/stations_snowfall.geojson"),
+    getJSON("./data/gosetsu.geojson"),
+  ]);
+
+  // 全データの経度緯度範囲を求める
+  const b = { minLon: Infinity, maxLon: -Infinity, minLat: Infinity, maxLat: -Infinity };
+  const scan = (lon, lat) => {
+    if (lon < b.minLon) b.minLon = lon;
+    if (lon > b.maxLon) b.maxLon = lon;
+    if (lat < b.minLat) b.minLat = lat;
+    if (lat > b.maxLat) b.maxLat = lat;
+  };
+  for (const fc of [maxdepth, snowfall]) {
+    for (const f of fc.features) scan(f.geometry.coordinates[0], f.geometry.coordinates[1]);
+  }
+  computeProjection(b);
+  buildPrefIndex(gosetsu);
+
+  // 観測点を配列化(投影座標 + 都道府県 + インデックス付き)
+  const prefSet = new Set();
+  for (const [ds, fc] of [["maxdepth", maxdepth], ["snowfall", snowfall]]) {
+    datasets[ds] = fc.features.map((f, i) => {
+      const [lon, lat] = f.geometry.coordinates;
+      const [x, z] = project(lon, lat);
+      const p = f.properties;
+      const pref = assignPref(lon, lat);
+      if (pref) prefSet.add(pref);
+      return {
+        name: p.name, addr: p.addr, org: p.org,
+        avg: p.avg, max: p.max, latest: p.latest, latestYear: p.latestYear,
+        years: p.years, pref, idx: i,
+        x, z,
+      };
+    });
+  }
+  prefsPresent = PREF_ORDER.filter((p) => prefSet.has(p));
+
+  buildRegions(gosetsu);
+}
+
+// 指定区域ポリゴンを (a) アウトライン (b) 豪雪区分で塗り分けた面 として描く
+function buildRegions(gosetsu) {
+  const OUTLINE_Y = 0.06;
+  const FILL_Y = 0.03;
+  const outlinePos = [];
+  // 塗り分けは豪雪区分ごとに1メッシュへ集約(描画コール数を抑える)
+  const acc = { "1": { pos: [], idx: [] }, "2": { pos: [], idx: [] } };
+
+  const addOutline = (ring) => {
+    for (let i = 0; i < ring.length - 1; i++) {
+      const [ax, az] = project(ring[i][0], ring[i][1]);
+      const [bx, bz] = project(ring[i + 1][0], ring[i + 1][1]);
+      outlinePos.push(ax, OUTLINE_Y, az, bx, OUTLINE_Y, bz);
+    }
+  };
+
+  // 1ポリゴン(外周 + 穴)を三角形分割し、対象の acc へ追記
+  const addFilled = (rings, a) => {
+    const toVec2 = (ring) =>
+      ring.map(([lon, lat]) => { const [x, z] = project(lon, lat); return new THREE.Vector2(x, z); });
+    const shape = new THREE.Shape(toVec2(rings[0]));
+    for (let i = 1; i < rings.length; i++) shape.holes.push(new THREE.Path(toVec2(rings[i])));
+    const g = new THREE.ShapeGeometry(shape); // (x, y, 0) を生成
+    const p = g.attributes.position.array;
+    const idx = g.index ? g.index.array : null;
+    const base = a.pos.length / 3;
+    for (let i = 0; i < p.length; i += 3) a.pos.push(p[i], FILL_Y, p[i + 1]); // (x, H, z)
+    if (idx) for (let i = 0; i < idx.length; i++) a.idx.push(idx[i] + base);
+    g.dispose();
+  };
+
+  for (const f of gosetsu.features) {
+    const g = f.geometry;
+    if (!g) continue;
+    const div = String((f.properties && f.properties.A22_009) || "1");
+    const a = acc[div] || acc["1"];
+    const polys = g.type === "MultiPolygon" ? g.coordinates
+      : g.type === "Polygon" ? [g.coordinates] : [];
+    for (const poly of polys) {
+      for (const ring of poly) addOutline(ring);
+      if (poly.length) addFilled(poly, a);
+    }
+  }
+
+  // (a) アウトライン
+  const og = new THREE.BufferGeometry();
+  og.setAttribute("position", new THREE.Float32BufferAttribute(outlinePos, 3));
+  regionOutline = new THREE.LineSegments(
+    og,
+    new THREE.LineBasicMaterial({ color: 0x3f6bb0, transparent: true, opacity: 0.55 })
+  );
+  scene.add(regionOutline);
+
+  // (b) 塗り分け面
+  regionFilled = new THREE.Group();
+  for (const div of ["1", "2"]) {
+    const a = acc[div];
+    if (!a.pos.length) continue;
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute("position", new THREE.Float32BufferAttribute(a.pos, 3));
+    fg.setIndex(a.idx);
+    const mesh = new THREE.Mesh(
+      fg,
+      new THREE.MeshBasicMaterial({
+        color: REGION_FILL[div], transparent: true, opacity: 0.4, side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    regionFilled.add(mesh);
+  }
+  scene.add(regionFilled);
+
+  applyRegionMode();
+}
+
+function applyRegionMode() {
+  const m = state.regionMode;
+  if (regionOutline) regionOutline.visible = m === "outline" || m === "filled";
+  if (regionFilled) regionFilled.visible = m === "filled";
+}
+
+// ---------------------------------------------------------------------------
+// カラム(InstancedMesh)
+// ---------------------------------------------------------------------------
+let bars = null;
+let allCurrent = [];    // 現データセットで高さ指標の値を持つ全観測点
+let current = [];       // 高さフィルタ通過後・実際に描画中の観測点
+let heightMax = 1;      // 高さ指標の全体最大(フィルタと無関係)
+let colorMax = 1;       // 色指標の全体最大(フィルタと無関係)
+let selected = null;    // 選択中の観測点(オブジェクト参照)
+const NEUTRAL = new THREE.Color(0x5a6a86); // 色指標が欠測のときのフォールバック
+const dummy = new THREE.Object3D();
+const tmpColor = new THREE.Color();
+
+const barGeo = new THREE.CylinderGeometry(BAR_RADIUS, BAR_RADIUS, 1, 10);
+const barMat = new THREE.MeshStandardMaterial({
+  roughness: 0.45, metalness: 0.05, vertexColors: false,
+});
+
+// 選択マーカー(選択中カラムの頂上に浮かぶ発光球)
+const markerMat = new THREE.MeshStandardMaterial({
+  color: HIGHLIGHT, emissive: HIGHLIGHT, emissiveIntensity: 0.9, roughness: 0.3,
+});
+const marker = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 12), markerMat);
+marker.visible = false;
+scene.add(marker);
+
+function metricValue(d, metric) {
+  const v = d[metric];
+  return typeof v === "number" && isFinite(v) ? v : null;
+}
+function heightValue(d) { return metricValue(d, state.heightMetric); }
+function colorValue(d) { return metricValue(d, state.colorMetric); }
+function heightOf(v) {
+  return Math.max(0.4, v * (TARGET_MAX_HEIGHT / heightMax));
+}
+// 観測点の色を tmpColor に設定(選択中は暖色ハイライト、色指標欠測は中間色)
+function colorFor(d) {
+  if (d === selected) return tmpColor.set(HIGHLIGHT);
+  const cv = colorValue(d);
+  return cv == null ? tmpColor.copy(NEUTRAL) : rampColor(cv / colorMax, tmpColor);
+}
+
+function rebuildBars() {
+  allCurrent = (datasets[state.dataset] || []).filter((d) => heightValue(d) != null);
+  heightMax = allCurrent.reduce((m, d) => Math.max(m, heightValue(d)), 1);
+  colorMax = allCurrent.reduce((m, d) => {
+    const cv = colorValue(d); return cv != null ? Math.max(m, cv) : m;
+  }, 1);
+  // 閾値が現在の高さ最大を超えていたらクランプ(ディープリンク/指標変更で全非表示になるのを防ぐ)
+  state.threshold = Math.min(state.threshold, Math.ceil(heightMax));
+  current = allCurrent.filter((d) =>
+    heightValue(d) >= state.threshold &&
+    (state.pref === "all" || d.pref === state.pref));
+
+  if (bars) { scene.remove(bars); bars.dispose?.(); }
+
+  bars = new THREE.InstancedMesh(barGeo, barMat, current.length);
+  bars.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+  for (let i = 0; i < current.length; i++) {
+    const d = current[i];
+    const h = heightOf(heightValue(d));
+    dummy.position.set(d.x, h / 2, d.z);
+    dummy.scale.set(1, h, 1);
+    dummy.rotation.set(0, 0, 0);
+    dummy.updateMatrix();
+    bars.setMatrixAt(i, dummy.matrix);
+    bars.setColorAt(i, colorFor(d));
+  }
+  bars.instanceMatrix.needsUpdate = true;
+  if (bars.instanceColor) bars.instanceColor.needsUpdate = true;
+  scene.add(bars);
+
+  updateMarker();
+  updateLegend();
+}
+
+// 選択マーカーの位置を現在の描画状態に合わせて更新
+function updateMarker() {
+  if (selected && current.includes(selected)) {
+    marker.position.set(selected.x, heightOf(heightValue(selected)) + 1.8, selected.z);
+    marker.visible = true;
+  } else {
+    marker.visible = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 凡例
+// ---------------------------------------------------------------------------
+function updateLegend() {
+  const unit = t("unit_cm");
+  document.getElementById("legend-title").textContent =
+    `${dsLabel(state.dataset)} ● ${t("legend_color")}: ${metricLabel(state.colorMetric)} (${unit})`;
+  document.getElementById("tick-min").textContent = "0";
+  document.getElementById("tick-mid").textContent =
+    Math.round(colorMax / 2).toLocaleString();
+  document.getElementById("tick-max").textContent =
+    Math.round(colorMax).toLocaleString();
+  document.getElementById("legend-height").textContent =
+    `↕ ${t("legend_height")}: ${metricLabel(state.heightMetric)}(${t("max")} ${Math.round(heightMax).toLocaleString()} ${unit})`;
+  const total = allCurrent.length, shown = current.length;
+  document.getElementById("legend-count").textContent =
+    shown === total
+      ? `${total.toLocaleString()} ${t("points")}`
+      : `${shown.toLocaleString()} / ${total.toLocaleString()} ${t("points")}(${t("filtering")})`;
+}
+
+// ---------------------------------------------------------------------------
+// ホバー(レイキャスト)
+// ---------------------------------------------------------------------------
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const tooltip = document.getElementById("tooltip");
+let hoverId = -1;
+let pointerInside = false;
+
+function onPointerMove(e) {
+  pointerInside = true;
+  pointer.px = e.clientX;
+  pointer.py = e.clientY;
+  pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+}
+renderer.domElement.addEventListener("pointermove", onPointerMove);
+renderer.domElement.addEventListener("pointerleave", () => {
+  pointerInside = false;
+  hoverId = -1;
+  tooltip.classList.remove("show");
+});
+
+function updateHover() {
+  if (!pointerInside || !bars) return;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObject(bars);
+  if (hits.length && hits[0].instanceId != null) {
+    const id = hits[0].instanceId;
+    if (id !== hoverId) {
+      hoverId = id;
+      const d = current[id];
+      const hv = heightValue(d), cv = colorValue(d);
+      const u = t("unit_cm");
+      const fmt = (v) => (v == null ? "—" : Math.round(v).toLocaleString() + " " + u);
+      tooltip.querySelector(".tt-name").textContent = d.name || "—";
+      const sameMetric = state.heightMetric === state.colorMetric;
+      tooltip.querySelector(".tt-val").textContent = sameMetric
+        ? `${fmt(hv)} — ${metricLabel(state.heightMetric)}`
+        : `↕ ${metricLabel(state.heightMetric)} ${fmt(hv)} / ● ${metricLabel(state.colorMetric)} ${fmt(cv)}`;
+      tooltip.querySelector(".tt-sub").textContent =
+        `${dsLabel(state.dataset)} ・ ${d.addr || ""}${d.org ? " / " + d.org : ""}`;
+    }
+    tooltip.style.left = pointer.px + 14 + "px";
+    tooltip.style.top = pointer.py + 14 + "px";
+    tooltip.classList.add("show");
+  } else {
+    hoverId = -1;
+    tooltip.classList.remove("show");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 選択(クリックで固定)
+// ---------------------------------------------------------------------------
+const detailEl = document.getElementById("detail");
+
+function setBarColorFor(d) {
+  if (!bars) return;
+  const i = current.indexOf(d);
+  if (i < 0) return;
+  bars.setColorAt(i, colorFor(d));
+  bars.instanceColor.needsUpdate = true;
+}
+
+function selectStation(d) {
+  if (!d) return;
+  const prev = selected;
+  selected = d;
+  state.sel = d.idx;
+  if (prev) setBarColorFor(prev);
+  setBarColorFor(d);
+  updateMarker();
+  showDetail(d);
+  pushHash();
+}
+
+function clearSelection() {
+  const prev = selected;
+  selected = null;
+  state.sel = null;
+  if (prev) setBarColorFor(prev);
+  marker.visible = false;
+  detailEl.classList.remove("show");
+  pushHash();
+}
+
+function showDetail(d) {
+  const u = t("unit_cm");
+  detailEl.querySelector(".d-name").textContent = d.name || "—";
+  detailEl.querySelector(".d-sub").textContent =
+    `${dsLabel(state.dataset)} ・ ${d.addr || ""}${d.org ? " / " + d.org : ""}`;
+  const latestKey = metricLabel("latest") +
+    (d.latestYear ? "(" + d.latestYear + t("fySuffix") + ")" : "");
+  const rows = [
+    [metricLabel("avg"), d.avg, "avg"],
+    [metricLabel("max"), d.max, "max"],
+    [latestKey, d.latest, "latest"],
+    [t("years"), d.years != null ? d.years + t("yearUnit") : null, null],
+  ];
+  detailEl.querySelector("#detail-rows").innerHTML = rows
+    .map(([k, v, metric]) => {
+      const disp = v == null ? "—" : metric ? Math.round(v).toLocaleString() + " " + u : v;
+      const tags =
+        (metric === state.heightMetric ? `<span class="chip">${t("chip_h")}</span>` : "") +
+        (metric === state.colorMetric ? `<span class="chip">${t("chip_c")}</span>` : "");
+      const hl = tags ? " hl" : "";
+      return `<tr><td class="k">${k}${tags}</td><td class="v${hl}">${disp}</td></tr>`;
+    })
+    .join("");
+  detailEl.classList.add("show");
+}
+
+document.getElementById("detail-close").addEventListener("click", clearSelection);
+
+// ドラッグと区別してクリックのみ選択に使う
+let downX = 0, downY = 0;
+renderer.domElement.addEventListener("pointerdown", (e) => {
+  downX = e.clientX; downY = e.clientY;
+  tween = null; // 手動操作を優先してカメラ移動を中断
+});
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6 || !bars) return;
+  pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObject(bars);
+  if (hits.length && hits[0].instanceId != null) selectStation(current[hits[0].instanceId]);
+  else clearSelection();
+});
+
+// ---------------------------------------------------------------------------
+// UI 配線
+// ---------------------------------------------------------------------------
+function wireSeg(id, key, onChange) {
+  const el = document.getElementById(id);
+  el.addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    setSegActive(id, key, btn.dataset[key]);
+    onChange(btn.dataset[key]);
+  });
+}
+function setSegActive(id, key, value) {
+  const el = document.getElementById(id);
+  [...el.children].forEach((b) => b.classList.toggle("active", b.dataset[key] === value));
+}
+
+function syncThreshold() {
+  const thr = document.getElementById("thr");
+  const max = Math.max(1, Math.ceil(heightMax));
+  thr.max = max;
+  state.threshold = Math.min(state.threshold, max); // スライダー最大値へクランプ
+  thr.value = state.threshold;
+  document.getElementById("thr-val").textContent = Math.round(state.threshold).toLocaleString();
+}
+
+wireSeg("seg-dataset", "ds", (v) => {
+  state.dataset = v;
+  clearSelection();          // データセットごとに観測点オブジェクトが別なので解除
+  state.threshold = 0;
+  rebuildBars();
+  syncThreshold();
+  pushHash();
+});
+wireSeg("seg-height", "metric", (v) => {
+  state.heightMetric = v;
+  state.threshold = 0;       // 高さの尺度が変わるためフィルタをリセット
+  rebuildBars();
+  syncThreshold();
+  if (selected) showDetail(selected);
+  pushHash();
+});
+wireSeg("seg-color", "metric", (v) => {
+  state.colorMetric = v;
+  rebuildBars();
+  if (selected) showDetail(selected);
+  pushHash();
+});
+wireSeg("seg-regions", "mode", (v) => { state.regionMode = v; applyRegionMode(); pushHash(); });
+wireSeg("seg-view", "view", (v) => flyToView(v));
+
+document.getElementById("pref-select").addEventListener("change", (e) => {
+  state.pref = e.target.value;
+  rebuildBars();
+  pushHash();
+});
+
+document.getElementById("thr").addEventListener("input", (e) => {
+  state.threshold = Number(e.target.value);
+  document.getElementById("thr-val").textContent = Math.round(state.threshold).toLocaleString();
+  rebuildBars();
+  pushHash();
+});
+
+document.getElementById("chk-rotate").addEventListener("change", (e) => {
+  state.autoRotate = e.target.checked;
+  controls.autoRotate = state.autoRotate;
+});
+
+document.getElementById("lang-select").addEventListener("change", (e) => {
+  lang = e.target.value;
+  applyI18n();
+  pushHash();
+});
+
+document.getElementById("share-btn").addEventListener("click", async () => {
+  const url = location.href;
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast(t("copied"));
+  } catch (_) {
+    // クリップボード不可の環境ではURLを選択できるよう prompt にフォールバック
+    window.prompt(t("share"), url);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 都道府県セレクト / 多言語 / トースト
+// ---------------------------------------------------------------------------
+function populatePrefSelect() {
+  const sel = document.getElementById("pref-select");
+  sel.innerHTML = `<option value="all">${t("pref_all")}</option>` +
+    prefsPresent.map((p) => `<option value="${p}">${p}</option>`).join("");
+  sel.value = state.pref;
+}
+
+function applyI18n() {
+  document.documentElement.lang = lang;
+  document.getElementById("lang-select").value = lang;
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    el.textContent = t(el.getAttribute("data-i18n"));
+  });
+  document.getElementById("thr-unit").textContent = t("filter_unit");
+  document.getElementById("credit").innerHTML = t("credit");
+  document.getElementById("loading-text").textContent = t("loading");
+  document.getElementById("detail-close").setAttribute("aria-label", t("close"));
+  // 動的表示を再生成
+  const allOpt = document.querySelector('#pref-select option[value="all"]');
+  if (allOpt) allOpt.textContent = t("pref_all");
+  updateLegend();
+  if (selected) showDetail(selected);
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
+}
+
+// ---------------------------------------------------------------------------
+// ディープリンク(URLハッシュに状態を保存/復元)
+// ---------------------------------------------------------------------------
+let restoring = false;
+function pushHash() {
+  if (restoring) return;
+  const p = new URLSearchParams();
+  if (state.dataset !== "maxdepth") p.set("ds", state.dataset);
+  if (state.heightMetric !== "avg") p.set("h", state.heightMetric);
+  if (state.colorMetric !== "avg") p.set("c", state.colorMetric);
+  if (state.threshold > 0) p.set("t", String(Math.round(state.threshold)));
+  if (state.pref !== "all") p.set("pref", state.pref);
+  if (state.regionMode !== "outline") p.set("r", state.regionMode);
+  if (state.view !== "all") p.set("v", state.view);
+  if (state.sel != null) p.set("sel", String(state.sel));
+  if (lang !== "ja") p.set("lang", lang);
+  const s = p.toString();
+  history.replaceState(null, "", s ? "#" + s : location.pathname + location.search);
+}
+
+function applyHash() {
+  const h = location.hash.replace(/^#/, "");
+  if (!h) return;
+  const p = new URLSearchParams(h);
+  const oneOf = (v, arr, def) => (arr.includes(v) ? v : def);
+  if (p.has("lang")) lang = oneOf(p.get("lang"), Object.keys(I18N), "ja");
+  if (p.has("ds")) state.dataset = oneOf(p.get("ds"), ["maxdepth", "snowfall"], "maxdepth");
+  if (p.has("h")) state.heightMetric = oneOf(p.get("h"), ["avg", "max", "latest"], "avg");
+  if (p.has("c")) state.colorMetric = oneOf(p.get("c"), ["avg", "max", "latest"], "avg");
+  if (p.has("r")) state.regionMode = oneOf(p.get("r"), ["none", "outline", "filled"], "outline");
+  if (p.has("v")) state.view = oneOf(p.get("v"), Object.keys(VIEWS), "all");
+  if (p.has("pref")) state.pref = p.get("pref");
+  if (p.has("t")) { const n = Number(p.get("t")); if (isFinite(n) && n >= 0) state.threshold = n; }
+  if (p.has("sel")) { const n = Number(p.get("sel")); if (Number.isInteger(n) && n >= 0) state.sel = n; }
+}
+
+// state に合わせて全UIの表示を同期
+function syncControlsToState() {
+  setSegActive("seg-dataset", "ds", state.dataset);
+  setSegActive("seg-height", "metric", state.heightMetric);
+  setSegActive("seg-color", "metric", state.colorMetric);
+  setSegActive("seg-regions", "mode", state.regionMode);
+  setSegActive("seg-view", "view", state.view);
+  document.getElementById("chk-rotate").checked = state.autoRotate;
+  controls.autoRotate = state.autoRotate;
+}
+
+function selectByIndex(idx) {
+  const d = (datasets[state.dataset] || [])[idx];
+  if (d) selectStation(d);
+}
+
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ---------------------------------------------------------------------------
+// カメラプリセット(スムーズに移動)
+// ---------------------------------------------------------------------------
+const DEFAULT_TARGET = new THREE.Vector3(0, 0, 0);
+const DEFAULT_CAM = new THREE.Vector3(0, 90, 120);
+let tween = null;
+
+function startTween(toTarget, toCam, dur = 800) {
+  tween = {
+    t0: performance.now(), dur,
+    fromT: controls.target.clone(), toT: toTarget.clone(),
+    fromC: camera.position.clone(), toC: toCam.clone(),
+  };
+}
+
+function flyToView(name, animate = true) {
+  state.view = name;
+  const v = VIEWS[name];
+  if (!v) {
+    animate ? startTween(DEFAULT_TARGET, DEFAULT_CAM) : setCamera(DEFAULT_TARGET, DEFAULT_CAM);
+  } else {
+    const [x, z] = project(v.lon, v.lat);
+    const target = new THREE.Vector3(x, 0, z);
+    const cam = new THREE.Vector3(x, v.dist * 0.85, z + v.dist * 0.95);
+    animate ? startTween(target, cam) : setCamera(target, cam);
+  }
+  pushHash();
+}
+function setCamera(target, cam) {
+  controls.target.copy(target);
+  camera.position.copy(cam);
+  controls.update();
+}
+
+function updateTween() {
+  if (!tween) return;
+  const k = Math.min(1, (performance.now() - tween.t0) / tween.dur);
+  const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // easeInOutQuad
+  controls.target.lerpVectors(tween.fromT, tween.toT, e);
+  camera.position.lerpVectors(tween.fromC, tween.toC, e);
+  if (k >= 1) tween = null;
+}
+
+// ---------------------------------------------------------------------------
+// ループ
+// ---------------------------------------------------------------------------
+function animate() {
+  requestAnimationFrame(animate);
+  updateTween();
+  controls.update();
+  updateHover();
+  renderer.render(scene, camera);
+}
+
+// ---------------------------------------------------------------------------
+// 起動
+// ---------------------------------------------------------------------------
+(async function init() {
+  restoring = true;
+  applyHash();      // URL から状態(言語含む)を復元
+  applyI18n();      // ローディング表示などを翻訳
+  try {
+    await loadAll();
+    populatePrefSelect();
+    if (state.pref !== "all" && !prefsPresent.includes(state.pref)) state.pref = "all";
+    document.getElementById("pref-select").value = state.pref;
+    syncControlsToState();
+    rebuildBars();
+    syncThreshold();
+    flyToView(state.view, false);       // カメラ視点を復元(アニメなし)
+    if (state.sel != null) selectByIndex(state.sel);
+    applyI18n();                        // データ確定後に凡例・詳細を再翻訳
+    restoring = false;
+    document.getElementById("loading").classList.add("hide");
+    animate();
+  } catch (err) {
+    restoring = false;
+    console.error(err);
+    document.getElementById("loading-text").textContent =
+      t("errPrefix") + (err && err.message ? err.message : err);
+  }
+})();
+</script>
+</body>
+</html>
