@@ -108,6 +108,8 @@
     font-size: 16px;
     font-weight: 700;
     line-height: 1.35;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   #title-panel p {
@@ -117,14 +119,26 @@
     line-height: 1.5;
   }
 
-  #view3d-link a {
+  /* 2D⇄3D モード切替(常時表示) */
+  #mode-switch {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 11px;
+    border: 1px solid var(--tokubetsu);
+    border-radius: 999px;
+    background: rgba(28, 92, 171, 0.08);
     color: var(--tokubetsu);
+    font-size: 12.5px;
     font-weight: 700;
     text-decoration: none;
+    white-space: nowrap;
+    line-height: 1;
   }
-
-  #view3d-link a:hover {
-    text-decoration: underline;
+  #mode-switch:hover {
+    background: var(--tokubetsu);
+    color: #fff;
   }
 
   #title-toggle {
@@ -676,6 +690,12 @@
     #title-toggle {
       display: flex;
     }
+    /* モバイルではタップ目標を拡大 */
+    #mode-switch {
+      min-height: 40px;
+      padding: 6px 13px;
+      font-size: 13px;
+    }
 
     /* 言語切替・レイヤー切替アイコンは右上に縦に並べる */
     #lang-switch-panel {
@@ -788,6 +808,12 @@
 <div id="title-panel" class="panel">
   <div id="title-panel-row">
     <h1 data-i18n="meta.title">日本の豪雪地帯マップ(2016年度)</h1>
+    <a
+      id="mode-switch"
+      href="./3d.html"
+      data-i18n-aria="title.to3dAria"
+      aria-label="3Dビューを開く"
+    >🧊 3D</a>
     <button
       id="title-toggle"
       type="button"
@@ -798,7 +824,6 @@
   <p data-i18n="meta.description">
     国土数値情報「豪雪地帯データ」(A22-2016)・「豪雪地帯データ(気象データ等)」(A22-m-14)をもとにした、豪雪地帯・特別豪雪地帯の指定区域と気象観測点の可視化です。
   </p>
-  <p id="view3d-link"><a href="./3d.html">🧊 3D View (Three.js / WebGL) →</a></p>
 </div>
 
 <div id="lang-switch-panel">
@@ -905,7 +930,7 @@
         description:
           "国土数値情報「豪雪地帯データ」(A22-2016)・「豪雪地帯データ(気象データ等)」(A22-m-14)をもとにした、豪雪地帯・特別豪雪地帯の指定区域と気象観測点の可視化です。",
       },
-      title: { toggleAria: "説明の表示・非表示を切り替え" },
+      title: { toggleAria: "説明の表示・非表示を切り替え", to3dAria: "3Dビュー(Three.js / WebGL)を開く" },
       layers: {
         sectionArea: "指定区域",
         togglePolygon: "豪雪地帯ポリゴンを表示",
@@ -972,7 +997,7 @@
         description:
           'A visualization of designated Heavy Snowfall Areas, Special Heavy Snowfall Areas, and weather observation stations, based on the National Land Numerical Information "Heavy Snowfall Area Data" (A22-2016) and "Heavy Snowfall Area Data (Meteorological Data, etc.)" (A22-m-14).',
       },
-      title: { toggleAria: "Show or hide the description" },
+      title: { toggleAria: "Show or hide the description", to3dAria: "Open the 3D view (Three.js / WebGL)" },
       layers: {
         sectionArea: "Designated Areas",
         togglePolygon: "Show Heavy Snowfall Area polygons",
@@ -1041,7 +1066,7 @@
         description:
           "基于日本国土数值信息「豪雪地带数据」(A22-2016)及「豪雪地带数据(气象数据等)」(A22-m-14)制作的豪雪地带、特别豪雪地带指定区域与气象观测点可视化地图。",
       },
-      title: { toggleAria: "显示或隐藏说明" },
+      title: { toggleAria: "显示或隐藏说明", to3dAria: "打开 3D 视图(Three.js / WebGL)" },
       layers: {
         sectionArea: "指定区域",
         togglePolygon: "显示豪雪地带区域",
@@ -1108,7 +1133,7 @@
         description:
           "국토수치정보 「호설지대 데이터」(A22-2016) 및 「호설지대 데이터(기상 데이터 등)」(A22-m-14)를 바탕으로 한 호설지대·특별호설지대 지정구역과 기상관측점 시각화입니다.",
       },
-      title: { toggleAria: "설명 표시·숨기기 전환" },
+      title: { toggleAria: "설명 표시·숨기기 전환", to3dAria: "3D 뷰(Three.js / WebGL) 열기" },
       layers: {
         sectionArea: "지정구역",
         togglePolygon: "호설지대 폴리곤 표시",
