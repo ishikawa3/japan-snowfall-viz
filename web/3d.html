@@ -1289,7 +1289,11 @@ function applyI18n() {
     el.textContent = t(el.getAttribute("data-i18n"));
   });
   document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
-    el.setAttribute("aria-label", t(el.getAttribute("data-i18n-aria")));
+    const key = el.getAttribute("data-i18n-aria");
+    // t() はキー欠落時にキー文字列を返すため、辞書に実訳がある場合のみ更新
+    // (生キーや空文字で HTML の既定 aria-label を上書きしないようにする)
+    const val = (I18N[lang] && I18N[lang][key]) || I18N.ja[key];
+    if (val) el.setAttribute("aria-label", val);
   });
   document.getElementById("thr-unit").textContent = t("filter_unit");
   document.getElementById("credit").innerHTML = t("credit");
