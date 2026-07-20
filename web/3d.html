@@ -591,7 +591,7 @@ const I18N = {
   ja: {
     title: "日本の豪雪 3Dビュー",
     desc: "気象観測点の積雪データを高さで立体化しています。ドラッグで回転、ホイール/ピンチでズーム。マウスを乗せると観測点の詳細を表示します。",
-    link2d: "← 2D地図版を見る", share: "🔗 共有リンク", copied: "リンクをコピーしました",
+    link2d: "← 2D地図版を見る", share: "🔗 共有リンク", copied: "リンクをコピーしました", close: "閉じる",
     lbl_dataset: "データセット", ds_maxdepth: "最深積雪", ds_snowfall: "累計降雪量",
     lbl_height: "高さの指標 ↕", lbl_color: "色の指標 ●",
     m_avg: "累年平均", m_max: "累年最大", m_latest: "最新年",
@@ -608,7 +608,7 @@ const I18N = {
   en: {
     title: "Japan Heavy-Snow 3D View",
     desc: "Weather-station snow data extruded by height. Drag to rotate, wheel/pinch to zoom. Hover a column for station details.",
-    link2d: "← 2D map view", share: "🔗 Share link", copied: "Link copied",
+    link2d: "← 2D map view", share: "🔗 Share link", copied: "Link copied", close: "Close",
     lbl_dataset: "Dataset", ds_maxdepth: "Max snow depth", ds_snowfall: "Cumulative snowfall",
     lbl_height: "Height metric ↕", lbl_color: "Color metric ●",
     m_avg: "Multi-year avg", m_max: "Multi-year max", m_latest: "Latest year",
@@ -625,7 +625,7 @@ const I18N = {
   "zh-Hans": {
     title: "日本豪雪 3D 视图",
     desc: "将气象观测点的积雪数据以高度立体化。拖动旋转,滚轮/双指缩放。悬停查看观测点详情。",
-    link2d: "← 查看 2D 地图版", share: "🔗 分享链接", copied: "已复制链接",
+    link2d: "← 查看 2D 地图版", share: "🔗 分享链接", copied: "已复制链接", close: "关闭",
     lbl_dataset: "数据集", ds_maxdepth: "最大积雪深", ds_snowfall: "累计降雪量",
     lbl_height: "高度指标 ↕", lbl_color: "颜色指标 ●",
     m_avg: "累年平均", m_max: "累年最大", m_latest: "最新年度",
@@ -642,7 +642,7 @@ const I18N = {
   ko: {
     title: "일본 폭설 3D 뷰",
     desc: "기상 관측점의 적설 데이터를 높이로 입체화합니다. 드래그로 회전, 휠/핀치로 확대·축소. 관측점에 마우스를 올리면 상세정보를 표시합니다.",
-    link2d: "← 2D 지도 버전 보기", share: "🔗 공유 링크", copied: "링크를 복사했습니다",
+    link2d: "← 2D 지도 버전 보기", share: "🔗 공유 링크", copied: "링크를 복사했습니다", close: "닫기",
     lbl_dataset: "데이터셋", ds_maxdepth: "최심 적설", ds_snowfall: "누적 강설량",
     lbl_height: "높이 지표 ↕", lbl_color: "색 지표 ●",
     m_avg: "누년 평균", m_max: "누년 최대", m_latest: "최근 연도",
@@ -792,11 +792,17 @@ function assignPref(lon, lat) {
   return null;
 }
 
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} (HTTP ${r.status} ${r.statusText})`);
+  return r.json();
+}
+
 async function loadAll() {
   const [maxdepth, snowfall, gosetsu] = await Promise.all([
-    fetch("./data/stations_maxdepth.geojson").then((r) => r.json()),
-    fetch("./data/stations_snowfall.geojson").then((r) => r.json()),
-    fetch("./data/gosetsu.geojson").then((r) => r.json()),
+    getJSON("./data/stations_maxdepth.geojson"),
+    getJSON("./data/stations_snowfall.geojson"),
+    getJSON("./data/gosetsu.geojson"),
   ]);
 
   // 全データの経度緯度範囲を求める
@@ -964,6 +970,8 @@ function rebuildBars() {
   colorMax = allCurrent.reduce((m, d) => {
     const cv = colorValue(d); return cv != null ? Math.max(m, cv) : m;
   }, 1);
+  // 閾値が現在の高さ最大を超えていたらクランプ(ディープリンク/指標変更で全非表示になるのを防ぐ)
+  state.threshold = Math.min(state.threshold, Math.ceil(heightMax));
   current = allCurrent.filter((d) =>
     heightValue(d) >= state.threshold &&
     (state.pref === "all" || d.pref === state.pref));
@@ -1172,7 +1180,9 @@ function setSegActive(id, key, value) {
 
 function syncThreshold() {
   const thr = document.getElementById("thr");
-  thr.max = Math.max(1, Math.ceil(heightMax));
+  const max = Math.max(1, Math.ceil(heightMax));
+  thr.max = max;
+  state.threshold = Math.min(state.threshold, max); // スライダー最大値へクランプ
   thr.value = state.threshold;
   document.getElementById("thr-val").textContent = Math.round(state.threshold).toLocaleString();
 }
@@ -1256,6 +1266,7 @@ function applyI18n() {
   document.getElementById("thr-unit").textContent = t("filter_unit");
   document.getElementById("credit").innerHTML = t("credit");
   document.getElementById("loading-text").textContent = t("loading");
+  document.getElementById("detail-close").setAttribute("aria-label", t("close"));
   // 動的表示を再生成
   const allOpt = document.querySelector('#pref-select option[value="all"]');
   if (allOpt) allOpt.textContent = t("pref_all");
