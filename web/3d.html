@@ -903,7 +903,10 @@ async function loadAll() {
     if (lat > b.maxLat) b.maxLat = lat;
   };
   for (const f of japan.features) {
-    for (const poly of f.geometry.coordinates)
+    const g = f.geometry;
+    const polys = g.type === "MultiPolygon" ? g.coordinates
+      : g.type === "Polygon" ? [g.coordinates] : [];
+    for (const poly of polys)
       for (const ring of poly) for (const [lon, lat] of ring) scan(lon, lat);
   }
   // 念のため観測点も含める(通常は日本地形の範囲内)
@@ -961,7 +964,10 @@ function buildBaseMap(japan, japanPref) {
     const idx = g.index ? g.index.array : null;
     const base = fillPos.length / 3;
     for (let i = 0; i < p.length; i += 3) fillPos.push(p[i], FILL_Y, p[i + 1]);
-    if (idx) for (let i = 0; i < idx.length; i++) fillIdx.push(idx[i] + base);
+    // (x,y,0)→(x,H,y) の座標入替で面が下向きになるため、巻き順を反転して上向きに
+    // (これにより DoubleSide 不要で FrontSide のまま上から見える)
+    if (idx) for (let i = 0; i < idx.length; i += 3)
+      fillIdx.push(idx[i] + base, idx[i + 2] + base, idx[i + 1] + base);
     g.dispose();
   };
 
@@ -979,7 +985,7 @@ function buildBaseMap(japan, japanPref) {
   fg.setIndex(fillIdx);
   const land = new THREE.Mesh(
     fg,
-    new THREE.MeshBasicMaterial({ color: 0x1a2740, side: THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({ color: 0x1a2740 }) // 上向き巻き順にしたので FrontSide で十分
   );
   scene.add(land);
 
