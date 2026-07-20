@@ -98,6 +98,74 @@
   }
   #title-panel a { color: var(--accent); text-decoration: none; }
   #title-panel a:hover { text-decoration: underline; }
+  .tp-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  #lang-select {
+    flex: 0 0 auto;
+    appearance: none;
+    background: var(--surface-solid);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: 12px;
+    padding: 4px 6px;
+    cursor: pointer;
+  }
+  .tp-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 10px;
+    font-size: 12px;
+  }
+  #share-btn {
+    appearance: none;
+    background: rgba(94, 200, 232, 0.14);
+    color: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  #share-btn:hover { background: rgba(94, 200, 232, 0.24); }
+
+  #pref-select {
+    width: 100%;
+    appearance: none;
+    background: var(--surface-solid);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+    padding: 7px 8px;
+    cursor: pointer;
+  }
+
+  /* --- コピー通知トースト --- */
+  #toast {
+    position: absolute;
+    z-index: 8;
+    left: 50%;
+    bottom: 28px;
+    transform: translateX(-50%) translateY(8px);
+    background: var(--surface-solid);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-size: 12.5px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* --- コントロール(右上) --- */
   #controls {
@@ -354,67 +422,81 @@
 <canvas id="scene"></canvas>
 
 <div id="title-panel" class="panel">
-  <h1><span class="dot"></span>日本の豪雪 3Dビュー</h1>
-  <p>
+  <div class="tp-head">
+    <h1><span class="dot"></span><span data-i18n="title">日本の豪雪 3Dビュー</span></h1>
+    <select id="lang-select" aria-label="Language">
+      <option value="ja">日本語</option>
+      <option value="en">English</option>
+      <option value="zh-Hans">简体中文</option>
+      <option value="ko">한국어</option>
+    </select>
+  </div>
+  <p data-i18n="desc">
     気象観測点の積雪データを高さで立体化しています。ドラッグで回転、
     ホイール/ピンチでズーム。マウスを乗せると観測点の詳細を表示します。
-    <br />
-    <a href="./index.html">← 2D地図版を見る</a>
   </p>
+  <div class="tp-actions">
+    <a href="./index.html" data-i18n="link2d">← 2D地図版を見る</a>
+    <button id="share-btn" data-i18n="share">🔗 共有リンク</button>
+  </div>
 </div>
 
 <div id="controls" class="panel">
   <div class="group">
-    <div class="label">データセット</div>
+    <div class="label" data-i18n="lbl_dataset">データセット</div>
     <div class="seg" id="seg-dataset">
-      <button data-ds="maxdepth" class="active">最深積雪</button>
-      <button data-ds="snowfall">累計降雪量</button>
+      <button data-ds="maxdepth" class="active" data-i18n="ds_maxdepth">最深積雪</button>
+      <button data-ds="snowfall" data-i18n="ds_snowfall">累計降雪量</button>
     </div>
   </div>
   <div class="group">
-    <div class="label">高さの指標 ↕</div>
+    <div class="label" data-i18n="lbl_height">高さの指標 ↕</div>
     <div class="seg" id="seg-height">
-      <button data-metric="avg" class="active">累年平均</button>
-      <button data-metric="max">累年最大</button>
-      <button data-metric="latest">最新年</button>
+      <button data-metric="avg" class="active" data-i18n="m_avg">累年平均</button>
+      <button data-metric="max" data-i18n="m_max">累年最大</button>
+      <button data-metric="latest" data-i18n="m_latest">最新年</button>
     </div>
   </div>
   <div class="group">
-    <div class="label">色の指標 ●</div>
+    <div class="label" data-i18n="lbl_color">色の指標 ●</div>
     <div class="seg" id="seg-color">
-      <button data-metric="avg" class="active">累年平均</button>
-      <button data-metric="max">累年最大</button>
-      <button data-metric="latest">最新年</button>
+      <button data-metric="avg" class="active" data-i18n="m_avg">累年平均</button>
+      <button data-metric="max" data-i18n="m_max">累年最大</button>
+      <button data-metric="latest" data-i18n="m_latest">最新年</button>
     </div>
   </div>
   <div class="group">
     <div class="slider-row">
-      <div class="label" style="margin-bottom:0">高さフィルタ</div>
-      <div class="val"><span id="thr-val">0</span> cm 以上</div>
+      <div class="label" style="margin-bottom:0" data-i18n="lbl_filter">高さフィルタ</div>
+      <div class="val"><span id="thr-val">0</span> <span id="thr-unit">cm 以上</span></div>
     </div>
     <input type="range" id="thr" min="0" max="100" value="0" step="1" />
   </div>
   <div class="group">
-    <div class="label">指定区域</div>
+    <div class="label" data-i18n="lbl_pref">都道府県</div>
+    <select id="pref-select"><option value="all" data-i18n="pref_all">すべて</option></select>
+  </div>
+  <div class="group">
+    <div class="label" data-i18n="lbl_regions">指定区域</div>
     <div class="seg" id="seg-regions">
-      <button data-mode="none">なし</button>
-      <button data-mode="outline" class="active">アウトライン</button>
-      <button data-mode="filled">塗り分け</button>
+      <button data-mode="none" data-i18n="r_none">なし</button>
+      <button data-mode="outline" class="active" data-i18n="r_outline">アウトライン</button>
+      <button data-mode="filled" data-i18n="r_filled">塗り分け</button>
     </div>
   </div>
   <div class="group">
-    <div class="label">視点(カメラ)</div>
+    <div class="label" data-i18n="lbl_view">視点(カメラ)</div>
     <div class="seg" id="seg-view">
-      <button data-view="all" class="active">全体</button>
-      <button data-view="hokkaido">北海道</button>
-      <button data-view="tohoku">東北</button>
-      <button data-view="hokuriku">北陸</button>
+      <button data-view="all" class="active" data-i18n="v_all">全体</button>
+      <button data-view="hokkaido" data-i18n="v_hokkaido">北海道</button>
+      <button data-view="tohoku" data-i18n="v_tohoku">東北</button>
+      <button data-view="hokuriku" data-i18n="v_hokuriku">北陸</button>
     </div>
   </div>
   <div class="group">
     <label class="check">
       <input type="checkbox" id="chk-rotate" />
-      自動回転
+      <span data-i18n="rotate">自動回転</span>
     </label>
   </div>
 </div>
@@ -442,9 +524,9 @@
   </table>
 </div>
 
-<div id="credit" class="panel">
-  データ: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">国土数値情報 豪雪地帯データ(気象データ等)A22-m-14</a> / A22-2016(国土交通省)。可視化: Three.js + WebGL。
-</div>
+<div id="credit" class="panel"></div>
+
+<div id="toast" role="status"></div>
 
 <div id="loading">
   <div class="spinner"></div>
@@ -477,6 +559,9 @@ const state = {
   colorMetric: "avg",      // カラムの色に使う指標 "avg" | "max" | "latest"
   regionMode: "outline",   // "none" | "outline" | "filled"
   threshold: 0,            // 高さフィルタ(高さ指標がこの値[cm]以上のみ表示)
+  pref: "all",             // 都道府県フィルタ("all" または都道府県名)
+  view: "all",             // カメラプリセット
+  sel: null,               // 選択中観測点のインデックス(deep-link用)
   autoRotate: false,
 };
 
@@ -493,8 +578,90 @@ const REGION_FILL = { "1": 0x86b6ef, "2": 0x1c5cab };  // 豪雪地帯 / 特別�
 // 選択ハイライト色(寒色ランプと対比する暖色)
 const HIGHLIGHT = 0xffb454;
 
-const DS_LABEL = { maxdepth: "最深積雪", snowfall: "累計降雪量" };
-const METRIC_LABEL = { avg: "累年平均", max: "累年最大", latest: "最新年" };
+// 都道府県の標準並び順(JISコード順。存在するもののみ表示)
+const PREF_ORDER = [
+  "北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県","茨城県","栃木県","群馬県",
+  "埼玉県","千葉県","東京都","神奈川県","新潟県","富山県","石川県","福井県","山梨県","長野県",
+  "岐阜県","静岡県","愛知県","三重県","滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県",
+  "鳥取県","島根県","岡山県","広島県","山口県","徳島県","香川県","愛媛県","高知県","福岡県",
+  "佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県",
+];
+
+// ------------------------------ 多言語 (i18n) ------------------------------
+let lang = "ja";
+const I18N = {
+  ja: {
+    title: "日本の豪雪 3Dビュー",
+    desc: "気象観測点の積雪データを高さで立体化しています。ドラッグで回転、ホイール/ピンチでズーム。マウスを乗せると観測点の詳細を表示します。",
+    link2d: "← 2D地図版を見る", share: "🔗 共有リンク", copied: "リンクをコピーしました",
+    lbl_dataset: "データセット", ds_maxdepth: "最深積雪", ds_snowfall: "累計降雪量",
+    lbl_height: "高さの指標 ↕", lbl_color: "色の指標 ●",
+    m_avg: "累年平均", m_max: "累年最大", m_latest: "最新年",
+    lbl_filter: "高さフィルタ", filter_unit: "cm 以上",
+    lbl_pref: "都道府県", pref_all: "すべて",
+    lbl_regions: "指定区域", r_none: "なし", r_outline: "アウトライン", r_filled: "塗り分け",
+    lbl_view: "視点(カメラ)", v_all: "全体", v_hokkaido: "北海道", v_tohoku: "東北", v_hokuriku: "北陸",
+    rotate: "自動回転",
+    legend_color: "色", legend_height: "高さ", unit_cm: "cm", max: "最大", points: "地点", filtering: "フィルタ中",
+    years: "観測年数", yearUnit: "年", fySuffix: "年度", chip_h: "↕高さ", chip_c: "●色",
+    loading: "データを読み込んでいます…", errPrefix: "データの読み込みに失敗しました: ",
+    credit: 'データ: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">国土数値情報 豪雪地帯データ(気象データ等)A22-m-14</a> / A22-2016(国土交通省)。可視化: Three.js + WebGL。',
+  },
+  en: {
+    title: "Japan Heavy-Snow 3D View",
+    desc: "Weather-station snow data extruded by height. Drag to rotate, wheel/pinch to zoom. Hover a column for station details.",
+    link2d: "← 2D map view", share: "🔗 Share link", copied: "Link copied",
+    lbl_dataset: "Dataset", ds_maxdepth: "Max snow depth", ds_snowfall: "Cumulative snowfall",
+    lbl_height: "Height metric ↕", lbl_color: "Color metric ●",
+    m_avg: "Multi-year avg", m_max: "Multi-year max", m_latest: "Latest year",
+    lbl_filter: "Height filter", filter_unit: "cm and up",
+    lbl_pref: "Prefecture", pref_all: "All",
+    lbl_regions: "Designated areas", r_none: "None", r_outline: "Outline", r_filled: "Filled",
+    lbl_view: "Camera", v_all: "Overview", v_hokkaido: "Hokkaido", v_tohoku: "Tohoku", v_hokuriku: "Hokuriku",
+    rotate: "Auto-rotate",
+    legend_color: "Color", legend_height: "Height", unit_cm: "cm", max: "max", points: "stations", filtering: "filtered",
+    years: "Years observed", yearUnit: " yr", fySuffix: " FY", chip_h: "↕H", chip_c: "●C",
+    loading: "Loading data…", errPrefix: "Failed to load data: ",
+    credit: 'Data: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">MLIT National Land Numerical Information A22-m-14</a> / A22-2016 (MLIT Japan). Visualization: Three.js + WebGL.',
+  },
+  "zh-Hans": {
+    title: "日本豪雪 3D 视图",
+    desc: "将气象观测点的积雪数据以高度立体化。拖动旋转,滚轮/双指缩放。悬停查看观测点详情。",
+    link2d: "← 查看 2D 地图版", share: "🔗 分享链接", copied: "已复制链接",
+    lbl_dataset: "数据集", ds_maxdepth: "最大积雪深", ds_snowfall: "累计降雪量",
+    lbl_height: "高度指标 ↕", lbl_color: "颜色指标 ●",
+    m_avg: "累年平均", m_max: "累年最大", m_latest: "最新年度",
+    lbl_filter: "高度筛选", filter_unit: "cm 以上",
+    lbl_pref: "都道府县", pref_all: "全部",
+    lbl_regions: "指定区域", r_none: "无", r_outline: "轮廓", r_filled: "填色",
+    lbl_view: "视角(相机)", v_all: "全景", v_hokkaido: "北海道", v_tohoku: "东北", v_hokuriku: "北陆",
+    rotate: "自动旋转",
+    legend_color: "颜色", legend_height: "高度", unit_cm: "cm", max: "最大", points: "个观测点", filtering: "筛选中",
+    years: "观测年数", yearUnit: " 年", fySuffix: " 年度", chip_h: "↕高", chip_c: "●色",
+    loading: "正在加载数据…", errPrefix: "数据加载失败: ",
+    credit: '数据: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">国土数值信息 豪雪地带数据(气象数据等)A22-m-14</a> / A22-2016(日本国土交通省)。可视化: Three.js + WebGL。',
+  },
+  ko: {
+    title: "일본 폭설 3D 뷰",
+    desc: "기상 관측점의 적설 데이터를 높이로 입체화합니다. 드래그로 회전, 휠/핀치로 확대·축소. 관측점에 마우스를 올리면 상세정보를 표시합니다.",
+    link2d: "← 2D 지도 버전 보기", share: "🔗 공유 링크", copied: "링크를 복사했습니다",
+    lbl_dataset: "데이터셋", ds_maxdepth: "최심 적설", ds_snowfall: "누적 강설량",
+    lbl_height: "높이 지표 ↕", lbl_color: "색 지표 ●",
+    m_avg: "누년 평균", m_max: "누년 최대", m_latest: "최근 연도",
+    lbl_filter: "높이 필터", filter_unit: "cm 이상",
+    lbl_pref: "도도부현", pref_all: "전체",
+    lbl_regions: "지정 구역", r_none: "없음", r_outline: "윤곽선", r_filled: "채색",
+    lbl_view: "시점(카메라)", v_all: "전체", v_hokkaido: "홋카이도", v_tohoku: "도호쿠", v_hokuriku: "호쿠리쿠",
+    rotate: "자동 회전",
+    legend_color: "색", legend_height: "높이", unit_cm: "cm", max: "최대", points: "지점", filtering: "필터 중",
+    years: "관측 연수", yearUnit: " 년", fySuffix: " 연도", chip_h: "↕높이", chip_c: "●색",
+    loading: "데이터를 불러오는 중…", errPrefix: "데이터 로드 실패: ",
+    credit: '데이터: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">국토수치정보 폭설지대 데이터(기상데이터 등) A22-m-14</a> / A22-2016 (일본 국토교통성). 시각화: Three.js + WebGL.',
+  },
+};
+function t(key) { return (I18N[lang] && I18N[lang][key]) || I18N.ja[key] || key; }
+function dsLabel(ds) { return t(ds === "maxdepth" ? "ds_maxdepth" : "ds_snowfall"); }
+function metricLabel(m) { return t("m_" + m); }
 
 // 色ランプ(寒色 → 氷白)。低い値=深いブルー、高い値=氷白。
 const RAMP = [
@@ -581,9 +748,51 @@ function computeProjection(bounds) {
 // ---------------------------------------------------------------------------
 // データ読み込み
 // ---------------------------------------------------------------------------
-const datasets = {};    // ds -> [{name, addr, org, avg, max, latest, latestYear, x, z}]
+const datasets = {};    // ds -> [観測点オブジェクト]
 let regionOutline = null;   // LineSegments(アウトライン)
 let regionFilled = null;    // Group(塗り分け面)
+let prefsPresent = [];      // データ中に存在する都道府県(PREF_ORDER順)
+
+// 都道府県判定用インデックス(経度緯度・bbox・外周/穴リング)
+let prefIndex = [];
+function buildPrefIndex(gosetsu) {
+  prefIndex = gosetsu.features.map((f) => {
+    const pref = f.properties && f.properties.A22_003;
+    const g = f.geometry;
+    const polys = g.type === "MultiPolygon" ? g.coordinates
+      : g.type === "Polygon" ? [g.coordinates] : [];
+    let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+    for (const poly of polys) for (const [x, y] of poly[0]) {
+      if (x < minx) minx = x; if (x > maxx) maxx = x;
+      if (y < miny) miny = y; if (y > maxy) maxy = y;
+    }
+    return { pref, bbox: [minx, miny, maxx, maxy], polys };
+  });
+}
+function ringContains(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if ((yi > y) !== (yj > y) &&
+        x < ((xj - xi) * (y - yi)) / (yj - yi || 1e-12) + xi) inside = !inside;
+  }
+  return inside;
+}
+function assignPref(lon, lat) {
+  for (const f of prefIndex) {
+    const [mnx, mny, mxx, mxy] = f.bbox;
+    if (lon < mnx || lon > mxx || lat < mny || lat > mxy) continue;
+    for (const poly of f.polys) {
+      if (ringContains(lon, lat, poly[0])) {
+        let inHole = false;
+        for (let h = 1; h < poly.length; h++)
+          if (ringContains(lon, lat, poly[h])) { inHole = true; break; }
+        if (!inHole) return f.pref;
+      }
+    }
+  }
+  return null;
+}
 
 async function loadAll() {
   const [maxdepth, snowfall, gosetsu] = await Promise.all([
@@ -604,21 +813,26 @@ async function loadAll() {
     for (const f of fc.features) scan(f.geometry.coordinates[0], f.geometry.coordinates[1]);
   }
   computeProjection(b);
+  buildPrefIndex(gosetsu);
 
-  // 観測点を配列化(投影座標付き)
+  // 観測点を配列化(投影座標 + 都道府県 + インデックス付き)
+  const prefSet = new Set();
   for (const [ds, fc] of [["maxdepth", maxdepth], ["snowfall", snowfall]]) {
-    datasets[ds] = fc.features.map((f) => {
+    datasets[ds] = fc.features.map((f, i) => {
       const [lon, lat] = f.geometry.coordinates;
       const [x, z] = project(lon, lat);
       const p = f.properties;
+      const pref = assignPref(lon, lat);
+      if (pref) prefSet.add(pref);
       return {
         name: p.name, addr: p.addr, org: p.org,
         avg: p.avg, max: p.max, latest: p.latest, latestYear: p.latestYear,
-        years: p.years,
+        years: p.years, pref, idx: i,
         x, z,
       };
     });
   }
+  prefsPresent = PREF_ORDER.filter((p) => prefSet.has(p));
 
   buildRegions(gosetsu);
 }
@@ -752,7 +966,9 @@ function rebuildBars() {
   colorMax = allCurrent.reduce((m, d) => {
     const cv = colorValue(d); return cv != null ? Math.max(m, cv) : m;
   }, 1);
-  current = allCurrent.filter((d) => heightValue(d) >= state.threshold);
+  current = allCurrent.filter((d) =>
+    heightValue(d) >= state.threshold &&
+    (state.pref === "all" || d.pref === state.pref));
 
   if (bars) { scene.remove(bars); bars.dispose?.(); }
 
@@ -791,21 +1007,21 @@ function updateMarker() {
 // 凡例
 // ---------------------------------------------------------------------------
 function updateLegend() {
-  const unit = "cm";
+  const unit = t("unit_cm");
   document.getElementById("legend-title").textContent =
-    `${DS_LABEL[state.dataset]} ● 色: ${METRIC_LABEL[state.colorMetric]} (${unit})`;
+    `${dsLabel(state.dataset)} ● ${t("legend_color")}: ${metricLabel(state.colorMetric)} (${unit})`;
   document.getElementById("tick-min").textContent = "0";
   document.getElementById("tick-mid").textContent =
     Math.round(colorMax / 2).toLocaleString();
   document.getElementById("tick-max").textContent =
     Math.round(colorMax).toLocaleString();
   document.getElementById("legend-height").textContent =
-    `↕ 高さ: ${METRIC_LABEL[state.heightMetric]}(最大 ${Math.round(heightMax).toLocaleString()} cm)`;
+    `↕ ${t("legend_height")}: ${metricLabel(state.heightMetric)}(${t("max")} ${Math.round(heightMax).toLocaleString()} ${unit})`;
   const total = allCurrent.length, shown = current.length;
   document.getElementById("legend-count").textContent =
     shown === total
-      ? `${total.toLocaleString()} 地点`
-      : `${shown.toLocaleString()} / ${total.toLocaleString()} 地点(フィルタ中)`;
+      ? `${total.toLocaleString()} ${t("points")}`
+      : `${shown.toLocaleString()} / ${total.toLocaleString()} ${t("points")}(${t("filtering")})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -841,14 +1057,15 @@ function updateHover() {
       hoverId = id;
       const d = current[id];
       const hv = heightValue(d), cv = colorValue(d);
-      const fmt = (v) => (v == null ? "—" : Math.round(v).toLocaleString() + " cm");
-      tooltip.querySelector(".tt-name").textContent = d.name || "(名称不明)";
+      const u = t("unit_cm");
+      const fmt = (v) => (v == null ? "—" : Math.round(v).toLocaleString() + " " + u);
+      tooltip.querySelector(".tt-name").textContent = d.name || "—";
       const sameMetric = state.heightMetric === state.colorMetric;
       tooltip.querySelector(".tt-val").textContent = sameMetric
-        ? `${fmt(hv)} — ${METRIC_LABEL[state.heightMetric]}`
-        : `↕ ${METRIC_LABEL[state.heightMetric]} ${fmt(hv)} / ● ${METRIC_LABEL[state.colorMetric]} ${fmt(cv)}`;
+        ? `${fmt(hv)} — ${metricLabel(state.heightMetric)}`
+        : `↕ ${metricLabel(state.heightMetric)} ${fmt(hv)} / ● ${metricLabel(state.colorMetric)} ${fmt(cv)}`;
       tooltip.querySelector(".tt-sub").textContent =
-        `${DS_LABEL[state.dataset]} ・ ${d.addr || ""}${d.org ? " / " + d.org : ""}`;
+        `${dsLabel(state.dataset)} ・ ${d.addr || ""}${d.org ? " / " + d.org : ""}`;
     }
     tooltip.style.left = pointer.px + 14 + "px";
     tooltip.style.top = pointer.py + 14 + "px";
@@ -876,36 +1093,43 @@ function selectStation(d) {
   if (!d) return;
   const prev = selected;
   selected = d;
+  state.sel = d.idx;
   if (prev) setBarColorFor(prev);
   setBarColorFor(d);
   updateMarker();
   showDetail(d);
+  pushHash();
 }
 
 function clearSelection() {
   const prev = selected;
   selected = null;
+  state.sel = null;
   if (prev) setBarColorFor(prev);
   marker.visible = false;
   detailEl.classList.remove("show");
+  pushHash();
 }
 
 function showDetail(d) {
-  detailEl.querySelector(".d-name").textContent = d.name || "(名称不明)";
+  const u = t("unit_cm");
+  detailEl.querySelector(".d-name").textContent = d.name || "—";
   detailEl.querySelector(".d-sub").textContent =
-    `${DS_LABEL[state.dataset]} ・ ${d.addr || ""}${d.org ? " / " + d.org : ""}`;
+    `${dsLabel(state.dataset)} ・ ${d.addr || ""}${d.org ? " / " + d.org : ""}`;
+  const latestKey = metricLabel("latest") +
+    (d.latestYear ? "(" + d.latestYear + t("fySuffix") + ")" : "");
   const rows = [
-    ["累年平均", d.avg, "avg"],
-    ["累年最大", d.max, "max"],
-    [`最新年${d.latestYear ? "(" + d.latestYear + "年度)" : ""}`, d.latest, "latest"],
-    ["観測年数", d.years != null ? d.years + " 年" : null, null],
+    [metricLabel("avg"), d.avg, "avg"],
+    [metricLabel("max"), d.max, "max"],
+    [latestKey, d.latest, "latest"],
+    [t("years"), d.years != null ? d.years + t("yearUnit") : null, null],
   ];
   detailEl.querySelector("#detail-rows").innerHTML = rows
     .map(([k, v, metric]) => {
-      const disp = v == null ? "—" : metric ? Math.round(v).toLocaleString() + " cm" : v;
+      const disp = v == null ? "—" : metric ? Math.round(v).toLocaleString() + " " + u : v;
       const tags =
-        (metric === state.heightMetric ? '<span class="chip">↕高さ</span>' : "") +
-        (metric === state.colorMetric ? '<span class="chip">●色</span>' : "");
+        (metric === state.heightMetric ? `<span class="chip">${t("chip_h")}</span>` : "") +
+        (metric === state.colorMetric ? `<span class="chip">${t("chip_c")}</span>` : "");
       const hl = tags ? " hl" : "";
       return `<tr><td class="k">${k}${tags}</td><td class="v${hl}">${disp}</td></tr>`;
     })
@@ -939,10 +1163,13 @@ function wireSeg(id, key, onChange) {
   el.addEventListener("click", (e) => {
     const btn = e.target.closest("button");
     if (!btn) return;
-    [...el.children].forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
+    setSegActive(id, key, btn.dataset[key]);
     onChange(btn.dataset[key]);
   });
+}
+function setSegActive(id, key, value) {
+  const el = document.getElementById(id);
+  [...el.children].forEach((b) => b.classList.toggle("active", b.dataset[key] === value));
 }
 
 function syncThreshold() {
@@ -958,6 +1185,7 @@ wireSeg("seg-dataset", "ds", (v) => {
   state.threshold = 0;
   rebuildBars();
   syncThreshold();
+  pushHash();
 });
 wireSeg("seg-height", "metric", (v) => {
   state.heightMetric = v;
@@ -965,25 +1193,138 @@ wireSeg("seg-height", "metric", (v) => {
   rebuildBars();
   syncThreshold();
   if (selected) showDetail(selected);
+  pushHash();
 });
 wireSeg("seg-color", "metric", (v) => {
   state.colorMetric = v;
   rebuildBars();
   if (selected) showDetail(selected);
+  pushHash();
 });
-wireSeg("seg-regions", "mode", (v) => { state.regionMode = v; applyRegionMode(); });
+wireSeg("seg-regions", "mode", (v) => { state.regionMode = v; applyRegionMode(); pushHash(); });
 wireSeg("seg-view", "view", (v) => flyToView(v));
+
+document.getElementById("pref-select").addEventListener("change", (e) => {
+  state.pref = e.target.value;
+  rebuildBars();
+  pushHash();
+});
 
 document.getElementById("thr").addEventListener("input", (e) => {
   state.threshold = Number(e.target.value);
   document.getElementById("thr-val").textContent = Math.round(state.threshold).toLocaleString();
   rebuildBars();
+  pushHash();
 });
 
 document.getElementById("chk-rotate").addEventListener("change", (e) => {
   state.autoRotate = e.target.checked;
   controls.autoRotate = state.autoRotate;
 });
+
+document.getElementById("lang-select").addEventListener("change", (e) => {
+  lang = e.target.value;
+  applyI18n();
+  pushHash();
+});
+
+document.getElementById("share-btn").addEventListener("click", async () => {
+  const url = location.href;
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast(t("copied"));
+  } catch (_) {
+    // クリップボード不可の環境ではURLを選択できるよう prompt にフォールバック
+    window.prompt(t("share"), url);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 都道府県セレクト / 多言語 / トースト
+// ---------------------------------------------------------------------------
+function populatePrefSelect() {
+  const sel = document.getElementById("pref-select");
+  sel.innerHTML = `<option value="all">${t("pref_all")}</option>` +
+    prefsPresent.map((p) => `<option value="${p}">${p}</option>`).join("");
+  sel.value = state.pref;
+}
+
+function applyI18n() {
+  document.documentElement.lang = lang;
+  document.getElementById("lang-select").value = lang;
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    el.textContent = t(el.getAttribute("data-i18n"));
+  });
+  document.getElementById("thr-unit").textContent = t("filter_unit");
+  document.getElementById("credit").innerHTML = t("credit");
+  document.getElementById("loading-text").textContent = t("loading");
+  // 動的表示を再生成
+  const allOpt = document.querySelector('#pref-select option[value="all"]');
+  if (allOpt) allOpt.textContent = t("pref_all");
+  updateLegend();
+  if (selected) showDetail(selected);
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
+}
+
+// ---------------------------------------------------------------------------
+// ディープリンク(URLハッシュに状態を保存/復元)
+// ---------------------------------------------------------------------------
+let restoring = false;
+function pushHash() {
+  if (restoring) return;
+  const p = new URLSearchParams();
+  if (state.dataset !== "maxdepth") p.set("ds", state.dataset);
+  if (state.heightMetric !== "avg") p.set("h", state.heightMetric);
+  if (state.colorMetric !== "avg") p.set("c", state.colorMetric);
+  if (state.threshold > 0) p.set("t", String(Math.round(state.threshold)));
+  if (state.pref !== "all") p.set("pref", state.pref);
+  if (state.regionMode !== "outline") p.set("r", state.regionMode);
+  if (state.view !== "all") p.set("v", state.view);
+  if (state.sel != null) p.set("sel", String(state.sel));
+  if (lang !== "ja") p.set("lang", lang);
+  const s = p.toString();
+  history.replaceState(null, "", s ? "#" + s : location.pathname + location.search);
+}
+
+function applyHash() {
+  const h = location.hash.replace(/^#/, "");
+  if (!h) return;
+  const p = new URLSearchParams(h);
+  const oneOf = (v, arr, def) => (arr.includes(v) ? v : def);
+  if (p.has("lang")) lang = oneOf(p.get("lang"), Object.keys(I18N), "ja");
+  if (p.has("ds")) state.dataset = oneOf(p.get("ds"), ["maxdepth", "snowfall"], "maxdepth");
+  if (p.has("h")) state.heightMetric = oneOf(p.get("h"), ["avg", "max", "latest"], "avg");
+  if (p.has("c")) state.colorMetric = oneOf(p.get("c"), ["avg", "max", "latest"], "avg");
+  if (p.has("r")) state.regionMode = oneOf(p.get("r"), ["none", "outline", "filled"], "outline");
+  if (p.has("v")) state.view = oneOf(p.get("v"), Object.keys(VIEWS), "all");
+  if (p.has("pref")) state.pref = p.get("pref");
+  if (p.has("t")) { const n = Number(p.get("t")); if (isFinite(n) && n >= 0) state.threshold = n; }
+  if (p.has("sel")) { const n = Number(p.get("sel")); if (Number.isInteger(n) && n >= 0) state.sel = n; }
+}
+
+// state に合わせて全UIの表示を同期
+function syncControlsToState() {
+  setSegActive("seg-dataset", "ds", state.dataset);
+  setSegActive("seg-height", "metric", state.heightMetric);
+  setSegActive("seg-color", "metric", state.colorMetric);
+  setSegActive("seg-regions", "mode", state.regionMode);
+  setSegActive("seg-view", "view", state.view);
+  document.getElementById("chk-rotate").checked = state.autoRotate;
+  controls.autoRotate = state.autoRotate;
+}
+
+function selectByIndex(idx) {
+  const d = (datasets[state.dataset] || [])[idx];
+  if (d) selectStation(d);
+}
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -1006,13 +1347,23 @@ function startTween(toTarget, toCam, dur = 800) {
   };
 }
 
-function flyToView(name) {
+function flyToView(name, animate = true) {
+  state.view = name;
   const v = VIEWS[name];
-  if (!v) { startTween(DEFAULT_TARGET, DEFAULT_CAM); return; }
-  const [x, z] = project(v.lon, v.lat);
-  const target = new THREE.Vector3(x, 0, z);
-  const cam = new THREE.Vector3(x, v.dist * 0.85, z + v.dist * 0.95);
-  startTween(target, cam);
+  if (!v) {
+    animate ? startTween(DEFAULT_TARGET, DEFAULT_CAM) : setCamera(DEFAULT_TARGET, DEFAULT_CAM);
+  } else {
+    const [x, z] = project(v.lon, v.lat);
+    const target = new THREE.Vector3(x, 0, z);
+    const cam = new THREE.Vector3(x, v.dist * 0.85, z + v.dist * 0.95);
+    animate ? startTween(target, cam) : setCamera(target, cam);
+  }
+  pushHash();
+}
+function setCamera(target, cam) {
+  controls.target.copy(target);
+  camera.position.copy(cam);
+  controls.update();
 }
 
 function updateTween() {
@@ -1039,16 +1390,28 @@ function animate() {
 // 起動
 // ---------------------------------------------------------------------------
 (async function init() {
+  restoring = true;
+  applyHash();      // URL から状態(言語含む)を復元
+  applyI18n();      // ローディング表示などを翻訳
   try {
     await loadAll();
+    populatePrefSelect();
+    if (state.pref !== "all" && !prefsPresent.includes(state.pref)) state.pref = "all";
+    document.getElementById("pref-select").value = state.pref;
+    syncControlsToState();
     rebuildBars();
     syncThreshold();
+    flyToView(state.view, false);       // カメラ視点を復元(アニメなし)
+    if (state.sel != null) selectByIndex(state.sel);
+    applyI18n();                        // データ確定後に凡例・詳細を再翻訳
+    restoring = false;
     document.getElementById("loading").classList.add("hide");
     animate();
   } catch (err) {
+    restoring = false;
     console.error(err);
     document.getElementById("loading-text").textContent =
-      "データの読み込みに失敗しました: " + (err && err.message ? err.message : err);
+      t("errPrefix") + (err && err.message ? err.message : err);
   }
 })();
 </script>
