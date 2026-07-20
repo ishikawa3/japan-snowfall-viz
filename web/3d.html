@@ -81,7 +81,29 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
   }
+  /* 2D⇄3D モード切替(常時表示) */
+  #mode-switch {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 11px;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    background: rgba(94, 200, 232, 0.14);
+    color: var(--accent);
+    font-size: 12.5px;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    line-height: 1;
+    min-height: 34px;
+    box-sizing: border-box;
+  }
+  #mode-switch:hover { background: var(--accent); color: #08111f; }
   #title-panel h1 .dot {
     width: 10px; height: 10px; border-radius: 50%;
     background: var(--accent);
@@ -434,7 +456,7 @@
     ホイール/ピンチでズーム。マウスを乗せると観測点の詳細を表示します。
   </p>
   <div class="tp-actions">
-    <a href="./index.html" data-i18n="link2d">← 2D地図版を見る</a>
+    <a id="mode-switch" href="./index.html" data-i18n-aria="to2dAria" aria-label="2D地図版を開く">🗺 2D</a>
     <button id="share-btn" data-i18n="share">🔗 共有リンク</button>
   </div>
 </div>
@@ -591,7 +613,7 @@ const I18N = {
   ja: {
     title: "日本の豪雪 3Dビュー",
     desc: "気象観測点の積雪データを高さで立体化しています。ドラッグで回転、ホイール/ピンチでズーム。マウスを乗せると観測点の詳細を表示します。",
-    link2d: "← 2D地図版を見る", share: "🔗 共有リンク", copied: "リンクをコピーしました", close: "閉じる",
+    link2d: "← 2D地図版を見る", share: "🔗 共有リンク", copied: "リンクをコピーしました", close: "閉じる", to2dAria: "2D地図版を開く",
     lbl_dataset: "データセット", ds_maxdepth: "最深積雪", ds_snowfall: "累計降雪量",
     lbl_height: "高さの指標 ↕", lbl_color: "色の指標 ●",
     m_avg: "累年平均", m_max: "累年最大", m_latest: "最新年",
@@ -608,7 +630,7 @@ const I18N = {
   en: {
     title: "Japan Heavy-Snow 3D View",
     desc: "Weather-station snow data extruded by height. Drag to rotate, wheel/pinch to zoom. Hover a column for station details.",
-    link2d: "← 2D map view", share: "🔗 Share link", copied: "Link copied", close: "Close",
+    link2d: "← 2D map view", share: "🔗 Share link", copied: "Link copied", close: "Close", to2dAria: "Open the 2D map view",
     lbl_dataset: "Dataset", ds_maxdepth: "Max snow depth", ds_snowfall: "Cumulative snowfall",
     lbl_height: "Height metric ↕", lbl_color: "Color metric ●",
     m_avg: "Multi-year avg", m_max: "Multi-year max", m_latest: "Latest year",
@@ -625,7 +647,7 @@ const I18N = {
   "zh-Hans": {
     title: "日本豪雪 3D 视图",
     desc: "将气象观测点的积雪数据以高度立体化。拖动旋转,滚轮/双指缩放。悬停查看观测点详情。",
-    link2d: "← 查看 2D 地图版", share: "🔗 分享链接", copied: "已复制链接", close: "关闭",
+    link2d: "← 查看 2D 地图版", share: "🔗 分享链接", copied: "已复制链接", close: "关闭", to2dAria: "打开 2D 地图版",
     lbl_dataset: "数据集", ds_maxdepth: "最大积雪深", ds_snowfall: "累计降雪量",
     lbl_height: "高度指标 ↕", lbl_color: "颜色指标 ●",
     m_avg: "累年平均", m_max: "累年最大", m_latest: "最新年度",
@@ -642,7 +664,7 @@ const I18N = {
   ko: {
     title: "일본 폭설 3D 뷰",
     desc: "기상 관측점의 적설 데이터를 높이로 입체화합니다. 드래그로 회전, 휠/핀치로 확대·축소. 관측점에 마우스를 올리면 상세정보를 표시합니다.",
-    link2d: "← 2D 지도 버전 보기", share: "🔗 공유 링크", copied: "링크를 복사했습니다", close: "닫기",
+    link2d: "← 2D 지도 버전 보기", share: "🔗 공유 링크", copied: "링크를 복사했습니다", close: "닫기", to2dAria: "2D 지도 버전 열기",
     lbl_dataset: "데이터셋", ds_maxdepth: "최심 적설", ds_snowfall: "누적 강설량",
     lbl_height: "높이 지표 ↕", lbl_color: "색 지표 ●",
     m_avg: "누년 평균", m_max: "누년 최대", m_latest: "최근 연도",
@@ -1267,6 +1289,7 @@ function applyI18n() {
   document.getElementById("credit").innerHTML = t("credit");
   document.getElementById("loading-text").textContent = t("loading");
   document.getElementById("detail-close").setAttribute("aria-label", t("close"));
+  document.getElementById("mode-switch").setAttribute("aria-label", t("to2dAria"));
   // 動的表示を再生成
   const allOpt = document.querySelector('#pref-select option[value="all"]');
   if (allOpt) allOpt.textContent = t("pref_all");
