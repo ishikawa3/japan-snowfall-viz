@@ -690,7 +690,7 @@ const I18N = {
     legend_color: "色", legend_height: "高さ", unit_cm: "cm", max: "最大", points: "地点", filtering: "フィルタ中",
     years: "観測年数", yearUnit: "年", fySuffix: "年度", chip_h: "↕高さ", chip_c: "●色",
     loading: "データを読み込んでいます…", errPrefix: "データの読み込みに失敗しました: ",
-    credit: 'データ: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">国土数値情報 豪雪地帯データ(気象データ等)A22-m-14</a> / A22-2016(国土交通省)。可視化: Three.js + WebGL。',
+    credit: 'データ: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">国土数値情報 豪雪地帯データ(気象データ等)A22-m-14</a> / A22-2016(国土交通省)。地形: Natural Earth(パブリックドメイン)。可視化: Three.js + WebGL。',
   },
   en: {
     title: "Japan Heavy-Snow 3D View",
@@ -707,7 +707,7 @@ const I18N = {
     legend_color: "Color", legend_height: "Height", unit_cm: "cm", max: "max", points: "stations", filtering: "filtered",
     years: "Years observed", yearUnit: " yr", fySuffix: " FY", chip_h: "↕H", chip_c: "●C",
     loading: "Loading data…", errPrefix: "Failed to load data: ",
-    credit: 'Data: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">MLIT National Land Numerical Information A22-m-14</a> / A22-2016 (MLIT Japan). Visualization: Three.js + WebGL.',
+    credit: 'Data: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">MLIT National Land Numerical Information A22-m-14</a> / A22-2016 (MLIT Japan). Terrain: Natural Earth (public domain). Visualization: Three.js + WebGL.',
   },
   "zh-Hans": {
     title: "日本豪雪 3D 视图",
@@ -724,7 +724,7 @@ const I18N = {
     legend_color: "颜色", legend_height: "高度", unit_cm: "cm", max: "最大", points: "个观测点", filtering: "筛选中",
     years: "观测年数", yearUnit: " 年", fySuffix: " 年度", chip_h: "↕高", chip_c: "●色",
     loading: "正在加载数据…", errPrefix: "数据加载失败: ",
-    credit: '数据: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">国土数值信息 豪雪地带数据(气象数据等)A22-m-14</a> / A22-2016(日本国土交通省)。可视化: Three.js + WebGL。',
+    credit: '数据: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">国土数值信息 豪雪地带数据(气象数据等)A22-m-14</a> / A22-2016(日本国土交通省)。地形: Natural Earth(公有领域)。可视化: Three.js + WebGL。',
   },
   ko: {
     title: "일본 폭설 3D 뷰",
@@ -741,7 +741,7 @@ const I18N = {
     legend_color: "색", legend_height: "높이", unit_cm: "cm", max: "최대", points: "지점", filtering: "필터 중",
     years: "관측 연수", yearUnit: " 년", fySuffix: " 연도", chip_h: "↕높이", chip_c: "●색",
     loading: "데이터를 불러오는 중…", errPrefix: "데이터 로드 실패: ",
-    credit: '데이터: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">국토수치정보 폭설지대 데이터(기상데이터 등) A22-m-14</a> / A22-2016 (일본 국토교통성). 시각화: Three.js + WebGL.',
+    credit: '데이터: <a href="https://nlftp.mlit.go.jp/ksj/gml/datalist/KsjTmplt-A22-m.html" target="_blank" rel="noopener">국토수치정보 폭설지대 데이터(기상데이터 등) A22-m-14</a> / A22-2016 (일본 국토교통성). 지형: Natural Earth (퍼블릭 도메인). 시각화: Three.js + WebGL.',
   },
 };
 function t(key) { return (I18N[lang] && I18N[lang][key]) || I18N.ja[key] || key; }
@@ -886,13 +886,15 @@ async function getJSON(url) {
 }
 
 async function loadAll() {
-  const [maxdepth, snowfall, gosetsu] = await Promise.all([
+  const [maxdepth, snowfall, gosetsu, japan, japanPref] = await Promise.all([
     getJSON("./data/stations_maxdepth.geojson"),
     getJSON("./data/stations_snowfall.geojson"),
     getJSON("./data/gosetsu.geojson"),
+    getJSON("./data/japan.geojson"),
+    getJSON("./data/japan_pref.geojson"),
   ]);
 
-  // 全データの経度緯度範囲を求める
+  // 経度緯度範囲を求める(日本地形の範囲を基準に投影 → 日本全体が収まる)
   const b = { minLon: Infinity, maxLon: -Infinity, minLat: Infinity, maxLat: -Infinity };
   const scan = (lon, lat) => {
     if (lon < b.minLon) b.minLon = lon;
@@ -900,10 +902,19 @@ async function loadAll() {
     if (lat < b.minLat) b.minLat = lat;
     if (lat > b.maxLat) b.maxLat = lat;
   };
+  for (const f of japan.features) {
+    const g = f.geometry;
+    const polys = g.type === "MultiPolygon" ? g.coordinates
+      : g.type === "Polygon" ? [g.coordinates] : [];
+    for (const poly of polys)
+      for (const ring of poly) for (const [lon, lat] of ring) scan(lon, lat);
+  }
+  // 念のため観測点も含める(通常は日本地形の範囲内)
   for (const fc of [maxdepth, snowfall]) {
     for (const f of fc.features) scan(f.geometry.coordinates[0], f.geometry.coordinates[1]);
   }
   computeProjection(b);
+  buildBaseMap(japan, japanPref);   // 日本の地形(海岸線 + 県境)をベースマップとして描画
   buildPrefIndex(gosetsu);
 
   // 観測点を配列化(投影座標 + 都道府県 + インデックス付き)
@@ -926,6 +937,90 @@ async function loadAll() {
   prefsPresent = PREF_ORDER.filter((p) => prefSet.has(p));
 
   buildRegions(gosetsu);
+}
+
+// 日本の地形(海岸線 + 県境)をベースマップとして描画(データのない地域も含め輪郭が分かるように)
+function buildBaseMap(japan, japanPref) {
+  const FILL_Y = 0.005;
+  const PREF_Y = 0.015;
+  const COAST_Y = 0.02;
+  const fillPos = [], fillIdx = [];
+  const coastPos = [];
+
+  const addCoast = (ring) => {
+    for (let i = 0; i < ring.length - 1; i++) {
+      const [ax, az] = project(ring[i][0], ring[i][1]);
+      const [bx, bz] = project(ring[i + 1][0], ring[i + 1][1]);
+      coastPos.push(ax, COAST_Y, az, bx, COAST_Y, bz);
+    }
+  };
+  const addFill = (rings) => {
+    const toVec2 = (ring) =>
+      ring.map(([lon, lat]) => { const [x, z] = project(lon, lat); return new THREE.Vector2(x, z); });
+    const shape = new THREE.Shape(toVec2(rings[0]));
+    for (let i = 1; i < rings.length; i++) shape.holes.push(new THREE.Path(toVec2(rings[i])));
+    const g = new THREE.ShapeGeometry(shape);
+    const p = g.attributes.position.array;
+    const idx = g.index ? g.index.array : null;
+    const base = fillPos.length / 3;
+    for (let i = 0; i < p.length; i += 3) fillPos.push(p[i], FILL_Y, p[i + 1]);
+    // (x,y,0)→(x,H,y) の座標入替で面が下向きになるため、巻き順を反転して上向きに
+    // (これにより DoubleSide 不要で FrontSide のまま上から見える)
+    if (idx) for (let i = 0; i < idx.length; i += 3)
+      fillIdx.push(idx[i] + base, idx[i + 2] + base, idx[i + 1] + base);
+    g.dispose();
+  };
+
+  for (const f of japan.features) {
+    const polys = f.geometry.type === "MultiPolygon" ? f.geometry.coordinates : [f.geometry.coordinates];
+    for (const poly of polys) {
+      for (const ring of poly) addCoast(ring);
+      if (poly.length) addFill(poly);
+    }
+  }
+
+  // 陸地の塗り(背景よりわずかに明るいスレート。雪データが引き立つよう控えめ)
+  const fg = new THREE.BufferGeometry();
+  fg.setAttribute("position", new THREE.Float32BufferAttribute(fillPos, 3));
+  fg.setIndex(fillIdx);
+  const land = new THREE.Mesh(
+    fg,
+    new THREE.MeshBasicMaterial({ color: 0x1a2740 }) // 上向き巻き順にしたので FrontSide で十分
+  );
+  scene.add(land);
+
+  // 県境(内部境界のみ。海岸線より控えめに)
+  if (japanPref && japanPref.features) {
+    const prefPos = [];
+    for (const f of japanPref.features) {
+      const g = f.geometry;
+      const lines = g.type === "MultiLineString" ? g.coordinates
+        : g.type === "LineString" ? [g.coordinates] : [];
+      for (const line of lines) {
+        for (let i = 0; i < line.length - 1; i++) {
+          const [ax, az] = project(line[i][0], line[i][1]);
+          const [bx, bz] = project(line[i + 1][0], line[i + 1][1]);
+          prefPos.push(ax, PREF_Y, az, bx, PREF_Y, bz);
+        }
+      }
+    }
+    const pg = new THREE.BufferGeometry();
+    pg.setAttribute("position", new THREE.Float32BufferAttribute(prefPos, 3));
+    const pref = new THREE.LineSegments(
+      pg,
+      new THREE.LineBasicMaterial({ color: 0x33496e, transparent: true, opacity: 0.45 })
+    );
+    scene.add(pref);
+  }
+
+  // 海岸線
+  const cg = new THREE.BufferGeometry();
+  cg.setAttribute("position", new THREE.Float32BufferAttribute(coastPos, 3));
+  const coast = new THREE.LineSegments(
+    cg,
+    new THREE.LineBasicMaterial({ color: 0x3f5a86, transparent: true, opacity: 0.7 })
+  );
+  scene.add(coast);
 }
 
 // 指定区域ポリゴンを (a) アウトライン (b) 豪雪区分で塗り分けた面 として描く

@@ -29,6 +29,8 @@ data/raw/a22m/               # A22-m-14 の生データ(zip・展開後shp、.gi
 web/index.html               # 地図アプリ本体(MapLibre GL JS、単一HTML)
 web/3d.html                  # 3Dビュー(Three.js + WebGL、同一データを立体表示、単一HTML)
 web/vendor/three/            # 同梱した Three.js r160(three.module.js / OrbitControls、MITライセンス)
+web/data/japan.geojson       # 3Dビューのベースマップ用 日本地形(Natural Earth 10m を簡略化、パブリックドメイン)
+web/data/japan_pref.geojson  # 3Dビューの都道府県境界(Natural Earth 10m admin_1 の内部境界のみ抽出、パブリックドメイン)
 web/data/gosetsu.geojson     # 指定区域の表示用データ(build-data.shが生成)
 web/data/stations_maxdepth.geojson  # 観測点・最深積雪(build-stations.shが生成)
 web/data/stations_snowfall.geojson  # 観測点・累計降雪量(build-stations.shが生成)
@@ -43,6 +45,7 @@ Three.js + WebGL で立体表示する別アプリです(公開URL: `.../3d.html
 - データセット(最深積雪 / 累計降雪量)と、**高さ・色に別々の指標**(累年平均 / 累年最大 / 最新年)を割り当て
 - 高さフィルタ(指定 cm 以上のみ表示)、都道府県での絞り込み(観測点を指定区域ポリゴンに点内包判定して都道府県を割り当て)
 - 指定区域の表示切替(なし / アウトライン / 豪雪区分での塗り分け)
+- 日本全体の地形(海岸線)と都道府県境界をベースマップとして表示(雪データのない地域も含めて日本の形・区分が分かる)
 - カメラプリセット(全体 / 北海道 / 東北 / 北陸)、カラムのクリックで詳細固定表示
 - 多言語対応(日本語 / English / 简体中文 / 한국어)
 - 現在の表示状態を URL ハッシュに保存する共有リンク(ディープリンク)
