@@ -1518,6 +1518,8 @@ function animate() {
     if (state.sel != null) selectByIndex(state.sel);
     applyI18n();                        // データ確定後に凡例・詳細を再翻訳
     restoring = false;
+    // 自動判定した言語など現在状態をURLへ同期(共有リンクが実表示と一致するように)
+    pushHash();
     document.getElementById("loading").classList.add("hide");
     animate();
   } catch (err) {
