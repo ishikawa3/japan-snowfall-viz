@@ -197,6 +197,29 @@
     max-height: calc(100vh - 24px);
     overflow-y: auto;
   }
+  /* モバイル用: コントロール開閉トグル(既定は非表示 = PCでは常時パネル表示) */
+  #controls-toggle {
+    display: none;
+    position: fixed;
+    z-index: 6;
+    top: 12px;
+    right: 12px;
+    width: 44px;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+  }
+  #controls-toggle:hover { background: var(--surface-solid); }
   #controls .group { margin-bottom: 14px; }
   #controls .group:last-child { margin-bottom: 0; }
   #controls .label {
@@ -432,8 +455,19 @@
   #credit a:hover { text-decoration: underline; }
 
   @media (max-width: 640px) {
-    #title-panel { max-width: calc(100vw - 24px); }
-    #controls { width: 180px; }
+    /* 右上の⚙トグルと重ならないようタイトル幅を調整 */
+    #title-panel { max-width: calc(100vw - 68px); }
+    /* コントロールは既定で折りたたみ、⚙トグルで開閉するオーバーレイに */
+    #controls-toggle { display: flex; }
+    #controls {
+      display: none;
+      top: 64px;
+      right: 12px;
+      width: 210px;
+      max-width: calc(100vw - 24px);
+      max-height: calc(100vh - 76px);
+    }
+    #controls.open { display: block; }
     #legend { width: calc(100vw - 24px); }
     #credit { display: none; }
     /* モバイルではタップ目標を拡大(index.html と揃える) */
@@ -463,6 +497,8 @@
     <button id="share-btn" data-i18n="share">🔗 共有リンク</button>
   </div>
 </div>
+
+<button id="controls-toggle" type="button" aria-expanded="false" data-i18n-aria="settings" aria-label="表示設定">⚙</button>
 
 <div id="controls" class="panel">
   <div class="group">
@@ -612,11 +648,37 @@ const PREF_ORDER = [
 
 // ------------------------------ 多言語 (i18n) ------------------------------
 let lang = "ja";
+
+// 言語コードを対応4言語へ正規化(2D版 index.html と揃える)
+function normalizeLang(raw) {
+  if (!raw) return null;
+  const s = String(raw).toLowerCase();
+  if (s.startsWith("ja")) return "ja";
+  if (s.startsWith("zh")) return "zh-Hans";
+  if (s.startsWith("ko")) return "ko";
+  if (s.startsWith("en")) return "en";
+  return null;
+}
+// 表示言語を決定: URLハッシュ(lang) → localStorage → ブラウザ言語 → en
+// (localStorage キー "lang" は 2D版と共有し、ページ間で言語を揃える)
+function detectLang() {
+  const h = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const fromUrl = normalizeLang(h.get("lang"));
+  if (fromUrl) { persistLang(fromUrl); return fromUrl; }
+  let stored = null;
+  try { stored = normalizeLang(localStorage.getItem("lang")); } catch (e) { /* 無効環境は無視 */ }
+  if (stored) return stored;
+  return normalizeLang((navigator.languages && navigator.languages[0]) || navigator.language) || "en";
+}
+function persistLang(l) {
+  try { localStorage.setItem("lang", l); } catch (e) { /* 無効環境は無視 */ }
+}
+
 const I18N = {
   ja: {
     title: "日本の豪雪 3Dビュー",
     desc: "気象観測点の積雪データを高さで立体化しています。ドラッグで回転、ホイール/ピンチでズーム。マウスを乗せると観測点の詳細を表示します。",
-    link2d: "← 2D地図版を見る", share: "🔗 共有リンク", copied: "リンクをコピーしました", close: "閉じる", to2dAria: "2D地図版を開く",
+    link2d: "← 2D地図版を見る", share: "🔗 共有リンク", copied: "リンクをコピーしました", close: "閉じる", to2dAria: "2D地図版を開く", settings: "表示設定",
     lbl_dataset: "データセット", ds_maxdepth: "最深積雪", ds_snowfall: "累計降雪量",
     lbl_height: "高さの指標 ↕", lbl_color: "色の指標 ●",
     m_avg: "累年平均", m_max: "累年最大", m_latest: "最新年",
@@ -633,7 +695,7 @@ const I18N = {
   en: {
     title: "Japan Heavy-Snow 3D View",
     desc: "Weather-station snow data extruded by height. Drag to rotate, wheel/pinch to zoom. Hover a column for station details.",
-    link2d: "← 2D map view", share: "🔗 Share link", copied: "Link copied", close: "Close", to2dAria: "Open the 2D map view",
+    link2d: "← 2D map view", share: "🔗 Share link", copied: "Link copied", close: "Close", to2dAria: "Open the 2D map view", settings: "Display settings",
     lbl_dataset: "Dataset", ds_maxdepth: "Max snow depth", ds_snowfall: "Cumulative snowfall",
     lbl_height: "Height metric ↕", lbl_color: "Color metric ●",
     m_avg: "Multi-year avg", m_max: "Multi-year max", m_latest: "Latest year",
@@ -650,7 +712,7 @@ const I18N = {
   "zh-Hans": {
     title: "日本豪雪 3D 视图",
     desc: "将气象观测点的积雪数据以高度立体化。拖动旋转,滚轮/双指缩放。悬停查看观测点详情。",
-    link2d: "← 查看 2D 地图版", share: "🔗 分享链接", copied: "已复制链接", close: "关闭", to2dAria: "打开 2D 地图版",
+    link2d: "← 查看 2D 地图版", share: "🔗 分享链接", copied: "已复制链接", close: "关闭", to2dAria: "打开 2D 地图版", settings: "显示设置",
     lbl_dataset: "数据集", ds_maxdepth: "最大积雪深", ds_snowfall: "累计降雪量",
     lbl_height: "高度指标 ↕", lbl_color: "颜色指标 ●",
     m_avg: "累年平均", m_max: "累年最大", m_latest: "最新年度",
@@ -667,7 +729,7 @@ const I18N = {
   ko: {
     title: "일본 폭설 3D 뷰",
     desc: "기상 관측점의 적설 데이터를 높이로 입체화합니다. 드래그로 회전, 휠/핀치로 확대·축소. 관측점에 마우스를 올리면 상세정보를 표시합니다.",
-    link2d: "← 2D 지도 버전 보기", share: "🔗 공유 링크", copied: "링크를 복사했습니다", close: "닫기", to2dAria: "2D 지도 버전 열기",
+    link2d: "← 2D 지도 버전 보기", share: "🔗 공유 링크", copied: "링크를 복사했습니다", close: "닫기", to2dAria: "2D 지도 버전 열기", settings: "표시 설정",
     lbl_dataset: "데이터셋", ds_maxdepth: "최심 적설", ds_snowfall: "누적 강설량",
     lbl_height: "높이 지표 ↕", lbl_color: "색 지표 ●",
     m_avg: "누년 평균", m_max: "누년 최대", m_latest: "최근 연도",
@@ -1257,8 +1319,18 @@ document.getElementById("chk-rotate").addEventListener("change", (e) => {
 
 document.getElementById("lang-select").addEventListener("change", (e) => {
   lang = e.target.value;
+  persistLang(lang);   // 選択を保存し 2D版とも言語を共有
   applyI18n();
   pushHash();
+});
+
+// モバイル: コントロールパネルの開閉(初期表示はすっきり折りたたみ)
+const controlsToggleBtn = document.getElementById("controls-toggle");
+controlsToggleBtn.addEventListener("click", () => {
+  const el = document.getElementById("controls");
+  const open = el.classList.toggle("open");
+  controlsToggleBtn.setAttribute("aria-expanded", String(open));
+  controlsToggleBtn.textContent = open ? "✕" : "⚙";
 });
 
 document.getElementById("share-btn").addEventListener("click", async () => {
@@ -1339,7 +1411,7 @@ function applyHash() {
   if (!h) return;
   const p = new URLSearchParams(h);
   const oneOf = (v, arr, def) => (arr.includes(v) ? v : def);
-  if (p.has("lang")) lang = oneOf(p.get("lang"), Object.keys(I18N), "ja");
+  // 言語は detectLang() で決定済み(URLハッシュ/localStorage/ブラウザ言語)
   if (p.has("ds")) state.dataset = oneOf(p.get("ds"), ["maxdepth", "snowfall"], "maxdepth");
   if (p.has("h")) state.heightMetric = oneOf(p.get("h"), ["avg", "max", "latest"], "avg");
   if (p.has("c")) state.colorMetric = oneOf(p.get("c"), ["avg", "max", "latest"], "avg");
@@ -1431,8 +1503,9 @@ function animate() {
 // ---------------------------------------------------------------------------
 (async function init() {
   restoring = true;
-  applyHash();      // URL から状態(言語含む)を復元
-  applyI18n();      // ローディング表示などを翻訳
+  lang = detectLang();   // 言語を決定(URL → localStorage → ブラウザ言語)
+  applyHash();           // URL から表示状態を復元
+  applyI18n();           // UI を翻訳
   try {
     await loadAll();
     populatePrefSelect();
