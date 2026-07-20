@@ -150,6 +150,46 @@
   }
   .check input { accent-color: var(--accent); width: 15px; height: 15px; }
 
+  /* --- スライダー --- */
+  .slider-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .slider-row .val {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 3px;
+    background: rgba(160, 180, 230, 0.25);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(94, 200, 232, 0.6);
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 15px; height: 15px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
   /* --- 凡例(左下) --- */
   #legend {
     left: 12px;
@@ -209,6 +249,48 @@
     font-weight: 700;
   }
   #tooltip .tt-sub { color: var(--text-muted); font-size: 11px; }
+
+  /* --- 選択詳細パネル --- */
+  #detail {
+    right: 12px;
+    bottom: 58px;
+    padding: 14px 16px 14px;
+    width: 260px;
+    display: none;
+  }
+  #detail.show { display: block; }
+  #detail .close {
+    position: absolute;
+    top: 8px; right: 10px;
+    width: 22px; height: 22px;
+    border: 0; background: transparent;
+    color: var(--text-muted);
+    font-size: 18px; line-height: 1;
+    cursor: pointer;
+  }
+  #detail .close:hover { color: var(--text-primary); }
+  #detail .d-name {
+    font-size: 15px; font-weight: 700;
+    margin: 0 20px 2px 0; line-height: 1.35;
+  }
+  #detail .d-sub {
+    font-size: 11px; color: var(--text-muted);
+    line-height: 1.5; margin-bottom: 10px;
+  }
+  #detail table { width: 100%; border-collapse: collapse; }
+  #detail td {
+    padding: 4px 0;
+    font-size: 12px;
+    border-top: 1px solid var(--border);
+  }
+  #detail td.k { color: var(--text-secondary); }
+  #detail td.v {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  #detail td.v.hl { color: var(--accent); }
 
   /* --- ローディング --- */
   #loading {
@@ -285,10 +367,19 @@
     </div>
   </div>
   <div class="group">
-    <label class="check">
-      <input type="checkbox" id="chk-regions" checked />
-      豪雪地帯の指定区域を表示
-    </label>
+    <div class="slider-row">
+      <div class="label" style="margin-bottom:0">高さフィルタ</div>
+      <div class="val"><span id="thr-val">0</span> cm 以上</div>
+    </div>
+    <input type="range" id="thr" min="0" max="100" value="0" step="1" />
+  </div>
+  <div class="group">
+    <div class="label">指定区域</div>
+    <div class="seg" id="seg-regions">
+      <button data-mode="none">なし</button>
+      <button data-mode="outline" class="active">アウトライン</button>
+      <button data-mode="filled">塗り分け</button>
+    </div>
   </div>
   <div class="group">
     <label class="check">
@@ -309,6 +400,15 @@
   <div class="tt-name"></div>
   <div class="tt-val"></div>
   <div class="tt-sub"></div>
+</div>
+
+<div id="detail" class="panel">
+  <button class="close" id="detail-close" aria-label="閉じる">×</button>
+  <div class="d-name"></div>
+  <div class="d-sub"></div>
+  <table>
+    <tbody id="detail-rows"></tbody>
+  </table>
 </div>
 
 <div id="credit" class="panel">
@@ -343,9 +443,15 @@ const BAR_RADIUS = 0.34;        // カラムの半径
 const state = {
   dataset: "maxdepth",   // "maxdepth" | "snowfall"
   metric: "avg",         // "avg" | "max" | "latest"
-  showRegions: true,
+  regionMode: "outline", // "none" | "outline" | "filled"
+  threshold: 0,          // 高さフィルタ(この値[cm]以上のみ表示)
   autoRotate: false,
 };
+
+// 指定区域の塗り分け色(2D版のパレットに合わせる)
+const REGION_FILL = { "1": 0x86b6ef, "2": 0x1c5cab };  // 豪雪地帯 / 特別豪雪地帯
+// 選択ハイライト色(寒色ランプと対比する暖色)
+const HIGHLIGHT = 0xffb454;
 
 const DS_LABEL = { maxdepth: "最深積雪", snowfall: "累計降雪量" };
 const METRIC_LABEL = { avg: "累年平均", max: "累年最大", latest: "最新年" };
@@ -436,7 +542,8 @@ function computeProjection(bounds) {
 // データ読み込み
 // ---------------------------------------------------------------------------
 const datasets = {};    // ds -> [{name, addr, org, avg, max, latest, latestYear, x, z}]
-let regionsGroup = null;
+let regionOutline = null;   // LineSegments(アウトライン)
+let regionFilled = null;    // Group(塗り分け面)
 
 async function loadAll() {
   const [maxdepth, snowfall, gosetsu] = await Promise.all([
@@ -467,6 +574,7 @@ async function loadAll() {
       return {
         name: p.name, addr: p.addr, org: p.org,
         avg: p.avg, max: p.max, latest: p.latest, latestYear: p.latestYear,
+        years: p.years,
         x, z,
       };
     });
@@ -475,41 +583,95 @@ async function loadAll() {
   buildRegions(gosetsu);
 }
 
-// 指定区域ポリゴンを地面のアウトラインとして描く
+// 指定区域ポリゴンを (a) アウトライン (b) 豪雪区分で塗り分けた面 として描く
 function buildRegions(gosetsu) {
-  const positions = [];
-  const addRing = (ring) => {
+  const OUTLINE_Y = 0.06;
+  const FILL_Y = 0.03;
+  const outlinePos = [];
+  // 塗り分けは豪雪区分ごとに1メッシュへ集約(描画コール数を抑える)
+  const acc = { "1": { pos: [], idx: [] }, "2": { pos: [], idx: [] } };
+
+  const addOutline = (ring) => {
     for (let i = 0; i < ring.length - 1; i++) {
       const [ax, az] = project(ring[i][0], ring[i][1]);
       const [bx, bz] = project(ring[i + 1][0], ring[i + 1][1]);
-      positions.push(ax, 0.02, az, bx, 0.02, bz);
+      outlinePos.push(ax, OUTLINE_Y, az, bx, OUTLINE_Y, bz);
     }
   };
+
+  // 1ポリゴン(外周 + 穴)を三角形分割し、対象の acc へ追記
+  const addFilled = (rings, a) => {
+    const toVec2 = (ring) =>
+      ring.map(([lon, lat]) => { const [x, z] = project(lon, lat); return new THREE.Vector2(x, z); });
+    const shape = new THREE.Shape(toVec2(rings[0]));
+    for (let i = 1; i < rings.length; i++) shape.holes.push(new THREE.Path(toVec2(rings[i])));
+    const g = new THREE.ShapeGeometry(shape); // (x, y, 0) を生成
+    const p = g.attributes.position.array;
+    const idx = g.index ? g.index.array : null;
+    const base = a.pos.length / 3;
+    for (let i = 0; i < p.length; i += 3) a.pos.push(p[i], FILL_Y, p[i + 1]); // (x, H, z)
+    if (idx) for (let i = 0; i < idx.length; i++) a.idx.push(idx[i] + base);
+    g.dispose();
+  };
+
   for (const f of gosetsu.features) {
     const g = f.geometry;
     if (!g) continue;
-    if (g.type === "MultiPolygon") {
-      for (const poly of g.coordinates) for (const ring of poly) addRing(ring);
-    } else if (g.type === "Polygon") {
-      for (const ring of g.coordinates) addRing(ring);
+    const div = String((f.properties && f.properties.A22_009) || "1");
+    const a = acc[div] || acc["1"];
+    const polys = g.type === "MultiPolygon" ? g.coordinates
+      : g.type === "Polygon" ? [g.coordinates] : [];
+    for (const poly of polys) {
+      for (const ring of poly) addOutline(ring);
+      if (poly.length) addFilled(poly, a);
     }
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  const mat = new THREE.LineBasicMaterial({
-    color: 0x3f6bb0, transparent: true, opacity: 0.55,
-  });
-  regionsGroup = new THREE.LineSegments(geo, mat);
-  regionsGroup.visible = state.showRegions;
-  scene.add(regionsGroup);
+
+  // (a) アウトライン
+  const og = new THREE.BufferGeometry();
+  og.setAttribute("position", new THREE.Float32BufferAttribute(outlinePos, 3));
+  regionOutline = new THREE.LineSegments(
+    og,
+    new THREE.LineBasicMaterial({ color: 0x3f6bb0, transparent: true, opacity: 0.55 })
+  );
+  scene.add(regionOutline);
+
+  // (b) 塗り分け面
+  regionFilled = new THREE.Group();
+  for (const div of ["1", "2"]) {
+    const a = acc[div];
+    if (!a.pos.length) continue;
+    const fg = new THREE.BufferGeometry();
+    fg.setAttribute("position", new THREE.Float32BufferAttribute(a.pos, 3));
+    fg.setIndex(a.idx);
+    const mesh = new THREE.Mesh(
+      fg,
+      new THREE.MeshBasicMaterial({
+        color: REGION_FILL[div], transparent: true, opacity: 0.4, side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    regionFilled.add(mesh);
+  }
+  scene.add(regionFilled);
+
+  applyRegionMode();
+}
+
+function applyRegionMode() {
+  const m = state.regionMode;
+  if (regionOutline) regionOutline.visible = m === "outline" || m === "filled";
+  if (regionFilled) regionFilled.visible = m === "filled";
 }
 
 // ---------------------------------------------------------------------------
 // カラム(InstancedMesh)
 // ---------------------------------------------------------------------------
 let bars = null;
-let current = [];       // 現在描画中の観測点配列
-let currentMax = 1;     // 現在の指標の最大値
+let allCurrent = [];    // 現データセット×指標で値を持つ全観測点
+let current = [];       // 高さフィルタ通過後・実際に描画中の観測点
+let currentMax = 1;     // 現在の指標の最大値(フィルタと無関係な全体最大)
+let selected = null;    // 選択中の観測点(オブジェクト参照)
 const dummy = new THREE.Object3D();
 const tmpColor = new THREE.Color();
 
@@ -518,39 +680,62 @@ const barMat = new THREE.MeshStandardMaterial({
   roughness: 0.45, metalness: 0.05, vertexColors: false,
 });
 
+// 選択マーカー(選択中カラムの頂上に浮かぶ発光球)
+const markerMat = new THREE.MeshStandardMaterial({
+  color: HIGHLIGHT, emissive: HIGHLIGHT, emissiveIntensity: 0.9, roughness: 0.3,
+});
+const marker = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 12), markerMat);
+marker.visible = false;
+scene.add(marker);
+
 function valueOf(d) {
   const v = d[state.metric];
   return typeof v === "number" && isFinite(v) ? v : null;
 }
+function heightOf(v) {
+  return Math.max(0.4, v * (TARGET_MAX_HEIGHT / currentMax));
+}
 
 function rebuildBars() {
-  const raw = datasets[state.dataset] || [];
-  current = raw.filter((d) => valueOf(d) != null);
-  currentMax = current.reduce((m, d) => Math.max(m, valueOf(d)), 1);
+  allCurrent = (datasets[state.dataset] || []).filter((d) => valueOf(d) != null);
+  currentMax = allCurrent.reduce((m, d) => Math.max(m, valueOf(d)), 1);
+  current = allCurrent.filter((d) => valueOf(d) >= state.threshold);
 
-  if (bars) { scene.remove(bars); bars.geometry.dispose?.(); bars.dispose?.(); }
+  if (bars) { scene.remove(bars); bars.dispose?.(); }
 
   bars = new THREE.InstancedMesh(barGeo, barMat, current.length);
   bars.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
-  const hScale = TARGET_MAX_HEIGHT / currentMax;
   for (let i = 0; i < current.length; i++) {
     const d = current[i];
     const v = valueOf(d);
-    const h = Math.max(0.4, v * hScale);
+    const h = heightOf(v);
     dummy.position.set(d.x, h / 2, d.z);
     dummy.scale.set(1, h, 1);
     dummy.rotation.set(0, 0, 0);
     dummy.updateMatrix();
     bars.setMatrixAt(i, dummy.matrix);
-    rampColor(v / currentMax, tmpColor);
+    if (d === selected) tmpColor.set(HIGHLIGHT);
+    else rampColor(v / currentMax, tmpColor);
     bars.setColorAt(i, tmpColor);
   }
   bars.instanceMatrix.needsUpdate = true;
   if (bars.instanceColor) bars.instanceColor.needsUpdate = true;
   scene.add(bars);
 
+  updateMarker();
   updateLegend();
+}
+
+// 選択マーカーの位置を現在の描画状態に合わせて更新
+function updateMarker() {
+  if (selected && current.includes(selected)) {
+    const v = valueOf(selected);
+    marker.position.set(selected.x, heightOf(v) + 1.8, selected.z);
+    marker.visible = true;
+  } else {
+    marker.visible = false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -565,8 +750,11 @@ function updateLegend() {
     Math.round(currentMax / 2).toLocaleString();
   document.getElementById("tick-max").textContent =
     Math.round(currentMax).toLocaleString();
+  const total = allCurrent.length, shown = current.length;
   document.getElementById("legend-count").textContent =
-    `${current.length.toLocaleString()} 地点`;
+    shown === total
+      ? `${total.toLocaleString()} 地点`
+      : `${shown.toLocaleString()} / ${total.toLocaleString()} 地点(フィルタ中)`;
 }
 
 // ---------------------------------------------------------------------------
@@ -619,6 +807,74 @@ function updateHover() {
 }
 
 // ---------------------------------------------------------------------------
+// 選択(クリックで固定)
+// ---------------------------------------------------------------------------
+const detailEl = document.getElementById("detail");
+
+function setBarColorFor(d) {
+  if (!bars) return;
+  const i = current.indexOf(d);
+  if (i < 0) return;
+  if (d === selected) tmpColor.set(HIGHLIGHT);
+  else rampColor(valueOf(d) / currentMax, tmpColor);
+  bars.setColorAt(i, tmpColor);
+  bars.instanceColor.needsUpdate = true;
+}
+
+function selectStation(d) {
+  if (!d) return;
+  const prev = selected;
+  selected = d;
+  if (prev) setBarColorFor(prev);
+  setBarColorFor(d);
+  updateMarker();
+  showDetail(d);
+}
+
+function clearSelection() {
+  const prev = selected;
+  selected = null;
+  if (prev) setBarColorFor(prev);
+  marker.visible = false;
+  detailEl.classList.remove("show");
+}
+
+function showDetail(d) {
+  detailEl.querySelector(".d-name").textContent = d.name || "(名称不明)";
+  detailEl.querySelector(".d-sub").textContent =
+    `${DS_LABEL[state.dataset]} ・ ${d.addr || ""}${d.org ? " / " + d.org : ""}`;
+  const rows = [
+    ["累年平均", d.avg, "avg"],
+    ["累年最大", d.max, "max"],
+    [`最新年${d.latestYear ? "(" + d.latestYear + "年度)" : ""}`, d.latest, "latest"],
+    ["観測年数", d.years != null ? d.years + " 年" : null, null],
+  ];
+  detailEl.querySelector("#detail-rows").innerHTML = rows
+    .map(([k, v, metric]) => {
+      const disp = v == null ? "—" : metric ? Math.round(v).toLocaleString() + " cm" : v;
+      const hl = metric && metric === state.metric ? " hl" : "";
+      return `<tr><td class="k">${k}</td><td class="v${hl}">${disp}</td></tr>`;
+    })
+    .join("");
+  detailEl.classList.add("show");
+}
+
+document.getElementById("detail-close").addEventListener("click", clearSelection);
+
+// ドラッグと区別してクリックのみ選択に使う
+let downX = 0, downY = 0;
+renderer.domElement.addEventListener("pointerdown", (e) => { downX = e.clientX; downY = e.clientY; });
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6 || !bars) return;
+  pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+  pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObject(bars);
+  if (hits.length && hits[0].instanceId != null) selectStation(current[hits[0].instanceId]);
+  else clearSelection();
+});
+
+// ---------------------------------------------------------------------------
 // UI 配線
 // ---------------------------------------------------------------------------
 function wireSeg(id, key, onChange) {
@@ -631,13 +887,36 @@ function wireSeg(id, key, onChange) {
     onChange(btn.dataset[key]);
   });
 }
-wireSeg("seg-dataset", "ds", (v) => { state.dataset = v; rebuildBars(); });
-wireSeg("seg-metric", "metric", (v) => { state.metric = v; rebuildBars(); });
 
-document.getElementById("chk-regions").addEventListener("change", (e) => {
-  state.showRegions = e.target.checked;
-  if (regionsGroup) regionsGroup.visible = state.showRegions;
+function syncThreshold() {
+  const thr = document.getElementById("thr");
+  thr.max = Math.max(1, Math.ceil(currentMax));
+  thr.value = state.threshold;
+  document.getElementById("thr-val").textContent = Math.round(state.threshold).toLocaleString();
+}
+
+wireSeg("seg-dataset", "ds", (v) => {
+  state.dataset = v;
+  clearSelection();          // データセットごとに観測点オブジェクトが別なので解除
+  state.threshold = 0;
+  rebuildBars();
+  syncThreshold();
 });
+wireSeg("seg-metric", "metric", (v) => {
+  state.metric = v;
+  state.threshold = 0;
+  rebuildBars();
+  syncThreshold();
+  if (selected) showDetail(selected); // ハイライト行を更新
+});
+wireSeg("seg-regions", "mode", (v) => { state.regionMode = v; applyRegionMode(); });
+
+document.getElementById("thr").addEventListener("input", (e) => {
+  state.threshold = Number(e.target.value);
+  document.getElementById("thr-val").textContent = Math.round(state.threshold).toLocaleString();
+  rebuildBars();
+});
+
 document.getElementById("chk-rotate").addEventListener("change", (e) => {
   state.autoRotate = e.target.checked;
   controls.autoRotate = state.autoRotate;
@@ -666,6 +945,7 @@ function animate() {
   try {
     await loadAll();
     rebuildBars();
+    syncThreshold();
     document.getElementById("loading").classList.add("hide");
     animate();
   } catch (err) {
