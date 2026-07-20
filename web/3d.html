@@ -886,11 +886,12 @@ async function getJSON(url) {
 }
 
 async function loadAll() {
-  const [maxdepth, snowfall, gosetsu, japan] = await Promise.all([
+  const [maxdepth, snowfall, gosetsu, japan, japanPref] = await Promise.all([
     getJSON("./data/stations_maxdepth.geojson"),
     getJSON("./data/stations_snowfall.geojson"),
     getJSON("./data/gosetsu.geojson"),
     getJSON("./data/japan.geojson"),
+    getJSON("./data/japan_pref.geojson"),
   ]);
 
   // 経度緯度範囲を求める(日本地形の範囲を基準に投影 → 日本全体が収まる)
@@ -910,7 +911,7 @@ async function loadAll() {
     for (const f of fc.features) scan(f.geometry.coordinates[0], f.geometry.coordinates[1]);
   }
   computeProjection(b);
-  buildBaseMap(japan);   // 日本の地形(海岸線)をベースマップとして描画
+  buildBaseMap(japan, japanPref);   // 日本の地形(海岸線 + 県境)をベースマップとして描画
   buildPrefIndex(gosetsu);
 
   // 観測点を配列化(投影座標 + 都道府県 + インデックス付き)
@@ -935,9 +936,10 @@ async function loadAll() {
   buildRegions(gosetsu);
 }
 
-// 日本の地形(海岸線)をベースマップとして描画(データのない地域も含め輪郭が分かるように)
-function buildBaseMap(japan) {
+// 日本の地形(海岸線 + 県境)をベースマップとして描画(データのない地域も含め輪郭が分かるように)
+function buildBaseMap(japan, japanPref) {
   const FILL_Y = 0.005;
+  const PREF_Y = 0.015;
   const COAST_Y = 0.02;
   const fillPos = [], fillIdx = [];
   const coastPos = [];
@@ -980,6 +982,30 @@ function buildBaseMap(japan) {
     new THREE.MeshBasicMaterial({ color: 0x1a2740, side: THREE.DoubleSide })
   );
   scene.add(land);
+
+  // 県境(内部境界のみ。海岸線より控えめに)
+  if (japanPref && japanPref.features) {
+    const prefPos = [];
+    for (const f of japanPref.features) {
+      const g = f.geometry;
+      const lines = g.type === "MultiLineString" ? g.coordinates
+        : g.type === "LineString" ? [g.coordinates] : [];
+      for (const line of lines) {
+        for (let i = 0; i < line.length - 1; i++) {
+          const [ax, az] = project(line[i][0], line[i][1]);
+          const [bx, bz] = project(line[i + 1][0], line[i + 1][1]);
+          prefPos.push(ax, PREF_Y, az, bx, PREF_Y, bz);
+        }
+      }
+    }
+    const pg = new THREE.BufferGeometry();
+    pg.setAttribute("position", new THREE.Float32BufferAttribute(prefPos, 3));
+    const pref = new THREE.LineSegments(
+      pg,
+      new THREE.LineBasicMaterial({ color: 0x33496e, transparent: true, opacity: 0.45 })
+    );
+    scene.add(pref);
+  }
 
   // 海岸線
   const cg = new THREE.BufferGeometry();
