@@ -105,6 +105,8 @@
     right: 12px;
     padding: 12px 14px;
     width: 220px;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
   }
   #controls .group { margin-bottom: 14px; }
   #controls .group:last-child { margin-bottom: 0; }
@@ -284,6 +286,17 @@
     border-top: 1px solid var(--border);
   }
   #detail td.k { color: var(--text-secondary); }
+  #detail .chip {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 5px;
+    font-size: 9.5px;
+    line-height: 1.4;
+    border-radius: 4px;
+    background: rgba(94, 200, 232, 0.18);
+    color: var(--accent);
+    vertical-align: middle;
+  }
   #detail td.v {
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -359,8 +372,16 @@
     </div>
   </div>
   <div class="group">
-    <div class="label">指標</div>
-    <div class="seg" id="seg-metric">
+    <div class="label">高さの指標 ↕</div>
+    <div class="seg" id="seg-height">
+      <button data-metric="avg" class="active">累年平均</button>
+      <button data-metric="max">累年最大</button>
+      <button data-metric="latest">最新年</button>
+    </div>
+  </div>
+  <div class="group">
+    <div class="label">色の指標 ●</div>
+    <div class="seg" id="seg-color">
       <button data-metric="avg" class="active">累年平均</button>
       <button data-metric="max">累年最大</button>
       <button data-metric="latest">最新年</button>
@@ -382,6 +403,15 @@
     </div>
   </div>
   <div class="group">
+    <div class="label">視点(カメラ)</div>
+    <div class="seg" id="seg-view">
+      <button data-view="all" class="active">全体</button>
+      <button data-view="hokkaido">北海道</button>
+      <button data-view="tohoku">東北</button>
+      <button data-view="hokuriku">北陸</button>
+    </div>
+  </div>
+  <div class="group">
     <label class="check">
       <input type="checkbox" id="chk-rotate" />
       自動回転
@@ -393,6 +423,7 @@
   <div class="label" id="legend-title">最深積雪・累年平均 (cm)</div>
   <div class="bar"></div>
   <div class="ticks"><span id="tick-min">0</span><span id="tick-mid">—</span><span id="tick-max">—</span></div>
+  <div class="note" id="legend-height">↕ 高さ: —</div>
   <div class="note" id="legend-count">— 地点</div>
 </div>
 
@@ -441,11 +472,20 @@ const TARGET_MAX_HEIGHT = 46;   // 最も高いカラムの目標高さ
 const BAR_RADIUS = 0.34;        // カラムの半径
 
 const state = {
-  dataset: "maxdepth",   // "maxdepth" | "snowfall"
-  metric: "avg",         // "avg" | "max" | "latest"
-  regionMode: "outline", // "none" | "outline" | "filled"
-  threshold: 0,          // 高さフィルタ(この値[cm]以上のみ表示)
+  dataset: "maxdepth",     // "maxdepth" | "snowfall"
+  heightMetric: "avg",     // カラムの高さに使う指標 "avg" | "max" | "latest"
+  colorMetric: "avg",      // カラムの色に使う指標 "avg" | "max" | "latest"
+  regionMode: "outline",   // "none" | "outline" | "filled"
+  threshold: 0,            // 高さフィルタ(高さ指標がこの値[cm]以上のみ表示)
   autoRotate: false,
+};
+
+// カメラプリセット(経度・緯度・距離)
+const VIEWS = {
+  all:      null, // 全体表示(俯瞰)
+  hokkaido: { lon: 142.8, lat: 43.4, dist: 66 },
+  tohoku:   { lon: 140.6, lat: 39.5, dist: 60 },
+  hokuriku: { lon: 137.6, lat: 36.9, dist: 52 },
 };
 
 // 指定区域の塗り分け色(2D版のパレットに合わせる)
@@ -668,10 +708,12 @@ function applyRegionMode() {
 // カラム(InstancedMesh)
 // ---------------------------------------------------------------------------
 let bars = null;
-let allCurrent = [];    // 現データセット×指標で値を持つ全観測点
+let allCurrent = [];    // 現データセットで高さ指標の値を持つ全観測点
 let current = [];       // 高さフィルタ通過後・実際に描画中の観測点
-let currentMax = 1;     // 現在の指標の最大値(フィルタと無関係な全体最大)
+let heightMax = 1;      // 高さ指標の全体最大(フィルタと無関係)
+let colorMax = 1;       // 色指標の全体最大(フィルタと無関係)
 let selected = null;    // 選択中の観測点(オブジェクト参照)
+const NEUTRAL = new THREE.Color(0x5a6a86); // 色指標が欠測のときのフォールバック
 const dummy = new THREE.Object3D();
 const tmpColor = new THREE.Color();
 
@@ -688,18 +730,29 @@ const marker = new THREE.Mesh(new THREE.SphereGeometry(0.9, 16, 12), markerMat);
 marker.visible = false;
 scene.add(marker);
 
-function valueOf(d) {
-  const v = d[state.metric];
+function metricValue(d, metric) {
+  const v = d[metric];
   return typeof v === "number" && isFinite(v) ? v : null;
 }
+function heightValue(d) { return metricValue(d, state.heightMetric); }
+function colorValue(d) { return metricValue(d, state.colorMetric); }
 function heightOf(v) {
-  return Math.max(0.4, v * (TARGET_MAX_HEIGHT / currentMax));
+  return Math.max(0.4, v * (TARGET_MAX_HEIGHT / heightMax));
+}
+// 観測点の色を tmpColor に設定(選択中は暖色ハイライト、色指標欠測は中間色)
+function colorFor(d) {
+  if (d === selected) return tmpColor.set(HIGHLIGHT);
+  const cv = colorValue(d);
+  return cv == null ? tmpColor.copy(NEUTRAL) : rampColor(cv / colorMax, tmpColor);
 }
 
 function rebuildBars() {
-  allCurrent = (datasets[state.dataset] || []).filter((d) => valueOf(d) != null);
-  currentMax = allCurrent.reduce((m, d) => Math.max(m, valueOf(d)), 1);
-  current = allCurrent.filter((d) => valueOf(d) >= state.threshold);
+  allCurrent = (datasets[state.dataset] || []).filter((d) => heightValue(d) != null);
+  heightMax = allCurrent.reduce((m, d) => Math.max(m, heightValue(d)), 1);
+  colorMax = allCurrent.reduce((m, d) => {
+    const cv = colorValue(d); return cv != null ? Math.max(m, cv) : m;
+  }, 1);
+  current = allCurrent.filter((d) => heightValue(d) >= state.threshold);
 
   if (bars) { scene.remove(bars); bars.dispose?.(); }
 
@@ -708,16 +761,13 @@ function rebuildBars() {
 
   for (let i = 0; i < current.length; i++) {
     const d = current[i];
-    const v = valueOf(d);
-    const h = heightOf(v);
+    const h = heightOf(heightValue(d));
     dummy.position.set(d.x, h / 2, d.z);
     dummy.scale.set(1, h, 1);
     dummy.rotation.set(0, 0, 0);
     dummy.updateMatrix();
     bars.setMatrixAt(i, dummy.matrix);
-    if (d === selected) tmpColor.set(HIGHLIGHT);
-    else rampColor(v / currentMax, tmpColor);
-    bars.setColorAt(i, tmpColor);
+    bars.setColorAt(i, colorFor(d));
   }
   bars.instanceMatrix.needsUpdate = true;
   if (bars.instanceColor) bars.instanceColor.needsUpdate = true;
@@ -730,8 +780,7 @@ function rebuildBars() {
 // 選択マーカーの位置を現在の描画状態に合わせて更新
 function updateMarker() {
   if (selected && current.includes(selected)) {
-    const v = valueOf(selected);
-    marker.position.set(selected.x, heightOf(v) + 1.8, selected.z);
+    marker.position.set(selected.x, heightOf(heightValue(selected)) + 1.8, selected.z);
     marker.visible = true;
   } else {
     marker.visible = false;
@@ -744,12 +793,14 @@ function updateMarker() {
 function updateLegend() {
   const unit = "cm";
   document.getElementById("legend-title").textContent =
-    `${DS_LABEL[state.dataset]}・${METRIC_LABEL[state.metric]} (${unit})`;
+    `${DS_LABEL[state.dataset]} ● 色: ${METRIC_LABEL[state.colorMetric]} (${unit})`;
   document.getElementById("tick-min").textContent = "0";
   document.getElementById("tick-mid").textContent =
-    Math.round(currentMax / 2).toLocaleString();
+    Math.round(colorMax / 2).toLocaleString();
   document.getElementById("tick-max").textContent =
-    Math.round(currentMax).toLocaleString();
+    Math.round(colorMax).toLocaleString();
+  document.getElementById("legend-height").textContent =
+    `↕ 高さ: ${METRIC_LABEL[state.heightMetric]}(最大 ${Math.round(heightMax).toLocaleString()} cm)`;
   const total = allCurrent.length, shown = current.length;
   document.getElementById("legend-count").textContent =
     shown === total
@@ -789,13 +840,15 @@ function updateHover() {
     if (id !== hoverId) {
       hoverId = id;
       const d = current[id];
-      const v = valueOf(d);
+      const hv = heightValue(d), cv = colorValue(d);
+      const fmt = (v) => (v == null ? "—" : Math.round(v).toLocaleString() + " cm");
       tooltip.querySelector(".tt-name").textContent = d.name || "(名称不明)";
-      tooltip.querySelector(".tt-val").textContent =
-        `${Math.round(v).toLocaleString()} cm — ${DS_LABEL[state.dataset]}・${METRIC_LABEL[state.metric]}`;
-      const yr = state.metric === "latest" && d.latestYear ? `(${d.latestYear}年度) ` : "";
+      const sameMetric = state.heightMetric === state.colorMetric;
+      tooltip.querySelector(".tt-val").textContent = sameMetric
+        ? `${fmt(hv)} — ${METRIC_LABEL[state.heightMetric]}`
+        : `↕ ${METRIC_LABEL[state.heightMetric]} ${fmt(hv)} / ● ${METRIC_LABEL[state.colorMetric]} ${fmt(cv)}`;
       tooltip.querySelector(".tt-sub").textContent =
-        `${yr}${d.addr || ""}${d.org ? " / " + d.org : ""}`;
+        `${DS_LABEL[state.dataset]} ・ ${d.addr || ""}${d.org ? " / " + d.org : ""}`;
     }
     tooltip.style.left = pointer.px + 14 + "px";
     tooltip.style.top = pointer.py + 14 + "px";
@@ -815,9 +868,7 @@ function setBarColorFor(d) {
   if (!bars) return;
   const i = current.indexOf(d);
   if (i < 0) return;
-  if (d === selected) tmpColor.set(HIGHLIGHT);
-  else rampColor(valueOf(d) / currentMax, tmpColor);
-  bars.setColorAt(i, tmpColor);
+  bars.setColorAt(i, colorFor(d));
   bars.instanceColor.needsUpdate = true;
 }
 
@@ -852,8 +903,11 @@ function showDetail(d) {
   detailEl.querySelector("#detail-rows").innerHTML = rows
     .map(([k, v, metric]) => {
       const disp = v == null ? "—" : metric ? Math.round(v).toLocaleString() + " cm" : v;
-      const hl = metric && metric === state.metric ? " hl" : "";
-      return `<tr><td class="k">${k}</td><td class="v${hl}">${disp}</td></tr>`;
+      const tags =
+        (metric === state.heightMetric ? '<span class="chip">↕高さ</span>' : "") +
+        (metric === state.colorMetric ? '<span class="chip">●色</span>' : "");
+      const hl = tags ? " hl" : "";
+      return `<tr><td class="k">${k}${tags}</td><td class="v${hl}">${disp}</td></tr>`;
     })
     .join("");
   detailEl.classList.add("show");
@@ -863,7 +917,10 @@ document.getElementById("detail-close").addEventListener("click", clearSelection
 
 // ドラッグと区別してクリックのみ選択に使う
 let downX = 0, downY = 0;
-renderer.domElement.addEventListener("pointerdown", (e) => { downX = e.clientX; downY = e.clientY; });
+renderer.domElement.addEventListener("pointerdown", (e) => {
+  downX = e.clientX; downY = e.clientY;
+  tween = null; // 手動操作を優先してカメラ移動を中断
+});
 renderer.domElement.addEventListener("pointerup", (e) => {
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6 || !bars) return;
   pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -890,7 +947,7 @@ function wireSeg(id, key, onChange) {
 
 function syncThreshold() {
   const thr = document.getElementById("thr");
-  thr.max = Math.max(1, Math.ceil(currentMax));
+  thr.max = Math.max(1, Math.ceil(heightMax));
   thr.value = state.threshold;
   document.getElementById("thr-val").textContent = Math.round(state.threshold).toLocaleString();
 }
@@ -902,14 +959,20 @@ wireSeg("seg-dataset", "ds", (v) => {
   rebuildBars();
   syncThreshold();
 });
-wireSeg("seg-metric", "metric", (v) => {
-  state.metric = v;
-  state.threshold = 0;
+wireSeg("seg-height", "metric", (v) => {
+  state.heightMetric = v;
+  state.threshold = 0;       // 高さの尺度が変わるためフィルタをリセット
   rebuildBars();
   syncThreshold();
-  if (selected) showDetail(selected); // ハイライト行を更新
+  if (selected) showDetail(selected);
+});
+wireSeg("seg-color", "metric", (v) => {
+  state.colorMetric = v;
+  rebuildBars();
+  if (selected) showDetail(selected);
 });
 wireSeg("seg-regions", "mode", (v) => { state.regionMode = v; applyRegionMode(); });
+wireSeg("seg-view", "view", (v) => flyToView(v));
 
 document.getElementById("thr").addEventListener("input", (e) => {
   state.threshold = Number(e.target.value);
@@ -929,10 +992,44 @@ window.addEventListener("resize", () => {
 });
 
 // ---------------------------------------------------------------------------
+// カメラプリセット(スムーズに移動)
+// ---------------------------------------------------------------------------
+const DEFAULT_TARGET = new THREE.Vector3(0, 0, 0);
+const DEFAULT_CAM = new THREE.Vector3(0, 90, 120);
+let tween = null;
+
+function startTween(toTarget, toCam, dur = 800) {
+  tween = {
+    t0: performance.now(), dur,
+    fromT: controls.target.clone(), toT: toTarget.clone(),
+    fromC: camera.position.clone(), toC: toCam.clone(),
+  };
+}
+
+function flyToView(name) {
+  const v = VIEWS[name];
+  if (!v) { startTween(DEFAULT_TARGET, DEFAULT_CAM); return; }
+  const [x, z] = project(v.lon, v.lat);
+  const target = new THREE.Vector3(x, 0, z);
+  const cam = new THREE.Vector3(x, v.dist * 0.85, z + v.dist * 0.95);
+  startTween(target, cam);
+}
+
+function updateTween() {
+  if (!tween) return;
+  const k = Math.min(1, (performance.now() - tween.t0) / tween.dur);
+  const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // easeInOutQuad
+  controls.target.lerpVectors(tween.fromT, tween.toT, e);
+  camera.position.lerpVectors(tween.fromC, tween.toC, e);
+  if (k >= 1) tween = null;
+}
+
+// ---------------------------------------------------------------------------
 // ループ
 // ---------------------------------------------------------------------------
 function animate() {
   requestAnimationFrame(animate);
+  updateTween();
   controls.update();
   updateHover();
   renderer.render(scene, camera);
