@@ -28,6 +28,7 @@ data/raw/                    # ダウンロードした生データ(zip・geojso
 data/raw/a22m/               # A22-m-14 の生データ(zip・展開後shp、.gitignore対象)
 web/index.html               # 地図アプリ本体(MapLibre GL JS、単一HTML)
 web/3d.html                  # 3Dビュー(Three.js + WebGL、同一データを立体表示、単一HTML)
+web/vendor/three/            # 同梱した Three.js r160(three.module.js / OrbitControls、MITライセンス)
 web/data/gosetsu.geojson     # 指定区域の表示用データ(build-data.shが生成)
 web/data/stations_maxdepth.geojson  # 観測点・最深積雪(build-stations.shが生成)
 web/data/stations_snowfall.geojson  # 観測点・累計降雪量(build-stations.shが生成)
@@ -45,6 +46,10 @@ Three.js + WebGL で立体表示する別アプリです(公開URL: `.../3d.html
 - カメラプリセット(全体 / 北海道 / 東北 / 北陸)、カラムのクリックで詳細固定表示
 - 多言語対応(日本語 / English / 简体中文 / 한국어)
 - 現在の表示状態を URL ハッシュに保存する共有リンク(ディープリンク)
+
+Three.js(r160、MITライセンス)は CDN ではなく `web/vendor/three/` に同梱しているため、
+外部への追加リクエストなしで動作します(CDN障害やネットワーク遮断の影響を受けません)。
+2D版(`index.html`)は従来どおり MapLibre GL JS を CDN から読み込みます。
 
 ## セットアップ
 
