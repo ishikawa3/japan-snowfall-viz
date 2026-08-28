@@ -55,16 +55,27 @@ const SHELL_URLS = [
 // ページ読み込み後にバックグラウンドで温めておくリソース。
 // 初回訪問では「SWが制御を取る前にページ側のデータ取得が終わっている」ため、
 // これを行わないと2回目の訪問までオフラインで動作しない。
-// ページから "WARM_CACHE" を受け取ったタイミングで取得する(取得済みならスキップ)。
-const WARM_URLS = [
-  "./vendor/three/build/three.module.js",
-  "./vendor/three/examples/jsm/controls/OrbitControls.js",
-  "./data/japan.geojson",
-  "./data/japan_pref.geojson",
+// ページから { type: "WARM_CACHE", profile } を受け取ったタイミングで取得する
+// (取得済みならスキップ)。
+//
+// 温める対象はページごとに分ける。2D地図版しか使わない利用者が
+// 3D専用の資産(Three.js・地形データ)まで取得してしまうのを避けるため。
+const WARM_2D = [
   "./data/gosetsu.geojson",
   "./data/stations_maxdepth.geojson",
   "./data/stations_snowfall.geojson",
 ];
+const WARM_SETS = {
+  "2d": WARM_2D,
+  // 3Dビューは 2D と同じデータに加えて、地形と Three.js が必要
+  "3d": [
+    ...WARM_2D,
+    "./data/japan.geojson",
+    "./data/japan_pref.geojson",
+    "./vendor/three/build/three.module.js",
+    "./vendor/three/examples/jsm/controls/OrbitControls.js",
+  ],
+};
 
 const CDN_HOSTS = ["unpkg.com"];
 const TILE_HOSTS = ["cyberjapandata.gsi.go.jp"];
@@ -102,19 +113,24 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
+  const msg = event.data;
   // 手動更新用
-  if (event.data === "SKIP_WAITING") self.skipWaiting();
+  if (msg === "SKIP_WAITING") self.skipWaiting();
   // ページ読み込み後のキャッシュ温め。
   // activate の waitUntil で行うと activating の間 fetch イベントが滞留して
   // ページ表示を待たせてしまうため、ページ側から明示的に依頼を受けて実行する。
-  if (event.data === "WARM_CACHE") event.waitUntil(warmAssets());
+  // どのページからの依頼かは profile で受け取り、必要な資産だけを温める。
+  if (msg && msg.type === "WARM_CACHE") {
+    const urls = WARM_SETS[msg.profile];
+    if (urls) event.waitUntil(warmAssets(urls));
+  }
 });
 
 // データ・ライブラリを順番に取得してキャッシュへ入れる(取得済みはスキップ)。
 // 途中で失敗しても次回の訪問で再試行されるため、エラーは無視してよい。
-async function warmAssets() {
+async function warmAssets(urls) {
   const cache = await caches.open(ASSET_CACHE);
-  for (const url of WARM_URLS) {
+  for (const url of urls) {
     try {
       if (await cache.match(url)) continue;
       const res = await fetch(url);
@@ -201,7 +217,8 @@ async function cacheFirst(event, cacheName, limit) {
       event.waitUntil(
         (async () => {
           await cache.put(req, copy);
-          if (limit) await trimCache(cacheName, limit);
+          // 開き直さず、ここで開いた cache をそのまま渡す(タイルは頻度が高い)
+          if (limit) await trimCache(cache, limit);
         })()
       );
     }
@@ -213,9 +230,8 @@ async function cacheFirst(event, cacheName, limit) {
   }
 }
 
-// 上限を超えた分を古い順(挿入順)に削除する
-async function trimCache(cacheName, limit) {
-  const cache = await caches.open(cacheName);
+// 上限を超えた分を古い順(挿入順)に削除する(呼び出し側で開いた cache を受け取る)
+async function trimCache(cache, limit) {
   const keys = await cache.keys();
   if (keys.length <= limit) return;
   for (const key of keys.slice(0, keys.length - limit)) await cache.delete(key);
