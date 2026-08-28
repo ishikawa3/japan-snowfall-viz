@@ -27,6 +27,16 @@
   content="豪雪地帯・特別豪雪地帯の指定区域と気象観測点を地図上に可視化。"
 />
 
+<!-- PWA(ホーム画面へのインストール・オフライン対応) -->
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="icon" href="./icons/favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="豪雪マップ" />
+<meta name="application-name" content="豪雪マップ" />
+
 <!-- 外部オリジンへの接続を前倒し(初期表示の短縮) -->
 <link rel="preconnect" href="https://unpkg.com" crossorigin />
 <link rel="preconnect" href="https://cyberjapandata.gsi.go.jp" />
@@ -2440,6 +2450,17 @@
 
       list.appendChild(rowEl);
     }
+  }
+</script>
+
+<!-- Service Worker(PWA のオフライン対応)。file:// では登録できないため除外 -->
+<script>
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(() => {
+        /* 登録失敗時も通常のページとして動作させる */
+      });
+    });
   }
 </script>
 </body>
