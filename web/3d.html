@@ -1639,10 +1639,16 @@ function animate() {
 <!-- Service Worker(PWA のオフライン対応)。file:// では登録できないため除外 -->
 <script>
   if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./sw.js").catch(() => {
+    window.addEventListener("load", async () => {
+      try {
+        await navigator.serviceWorker.register("./sw.js");
+        // 初回訪問ではSWが制御を取る前にデータ取得が終わっているため、
+        // オフライン用のキャッシュ充填をSWに依頼する(2回目以降は取得済みでスキップ)。
+        const reg = await navigator.serviceWorker.ready;
+        (reg.active || navigator.serviceWorker.controller)?.postMessage("WARM_CACHE");
+      } catch (e) {
         /* 登録失敗時も通常のページとして動作させる */
-      });
+      }
     });
   }
 </script>

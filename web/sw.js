@@ -27,9 +27,14 @@
 
 const VERSION = "v1";
 
-const SHELL_CACHE = `shell-${VERSION}`;
-const ASSET_CACHE = `assets-${VERSION}`;
-const TILE_CACHE = `tiles-${VERSION}`;
+// このSWが管理するキャッシュの接頭辞。
+// GitHub Pages(user.github.io)は同一オリジンを他のリポジトリのページと共有するため、
+// 古いキャッシュを消すときはこの接頭辞のものだけを対象にする(他アプリの巻き添えを防ぐ)。
+const CACHE_PREFIX = "japan-snowfall-viz-";
+
+const SHELL_CACHE = `${CACHE_PREFIX}shell-${VERSION}`;
+const ASSET_CACHE = `${CACHE_PREFIX}assets-${VERSION}`;
+const TILE_CACHE = `${CACHE_PREFIX}tiles-${VERSION}`;
 const CURRENT_CACHES = [SHELL_CACHE, ASSET_CACHE, TILE_CACHE];
 
 // 地理院タイルの保持上限(枚)
@@ -45,6 +50,20 @@ const SHELL_URLS = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
+];
+
+// ページ読み込み後にバックグラウンドで温めておくリソース。
+// 初回訪問では「SWが制御を取る前にページ側のデータ取得が終わっている」ため、
+// これを行わないと2回目の訪問までオフラインで動作しない。
+// ページから "WARM_CACHE" を受け取ったタイミングで取得する(取得済みならスキップ)。
+const WARM_URLS = [
+  "./vendor/three/build/three.module.js",
+  "./vendor/three/examples/jsm/controls/OrbitControls.js",
+  "./data/japan.geojson",
+  "./data/japan_pref.geojson",
+  "./data/gosetsu.geojson",
+  "./data/stations_maxdepth.geojson",
+  "./data/stations_snowfall.geojson",
 ];
 
 const CDN_HOSTS = ["unpkg.com"];
@@ -72,17 +91,39 @@ self.addEventListener("activate", (event) => {
     (async () => {
       const keys = await caches.keys();
       await Promise.all(
-        keys.filter((k) => !CURRENT_CACHES.includes(k)).map((k) => caches.delete(k))
+        keys
+          // 自分が作ったキャッシュ(接頭辞つき)のうち、現行バージョン以外だけを削除する
+          .filter((k) => k.startsWith(CACHE_PREFIX) && !CURRENT_CACHES.includes(k))
+          .map((k) => caches.delete(k))
       );
       await self.clients.claim();
     })()
   );
 });
 
-// 手動更新用(ページ側から postMessage できるようにしておく)
 self.addEventListener("message", (event) => {
+  // 手動更新用
   if (event.data === "SKIP_WAITING") self.skipWaiting();
+  // ページ読み込み後のキャッシュ温め。
+  // activate の waitUntil で行うと activating の間 fetch イベントが滞留して
+  // ページ表示を待たせてしまうため、ページ側から明示的に依頼を受けて実行する。
+  if (event.data === "WARM_CACHE") event.waitUntil(warmAssets());
 });
+
+// データ・ライブラリを順番に取得してキャッシュへ入れる(取得済みはスキップ)。
+// 途中で失敗しても次回の訪問で再試行されるため、エラーは無視してよい。
+async function warmAssets() {
+  const cache = await caches.open(ASSET_CACHE);
+  for (const url of WARM_URLS) {
+    try {
+      if (await cache.match(url)) continue;
+      const res = await fetch(url);
+      if (res && res.ok) await cache.put(url, res);
+    } catch (e) {
+      /* オフライン等。次の訪問で再試行する */
+    }
+  }
+}
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
@@ -93,39 +134,46 @@ self.addEventListener("fetch", (event) => {
 
   // ページ遷移: network-first(更新を拾う) → キャッシュ → オフラインは index.html
   if (req.mode === "navigate") {
-    event.respondWith(handleNavigate(req));
+    event.respondWith(handleNavigate(event));
     return;
   }
 
   const sameOrigin = url.origin === self.location.origin;
 
   if (sameOrigin && /\/(data|vendor)\//.test(url.pathname)) {
-    event.respondWith(cacheFirst(req, ASSET_CACHE));
+    event.respondWith(cacheFirst(event, ASSET_CACHE));
     return;
   }
   if (sameOrigin) {
     // アイコンや manifest など、その他の同一オリジン資産
-    event.respondWith(cacheFirst(req, SHELL_CACHE));
+    event.respondWith(cacheFirst(event, SHELL_CACHE));
     return;
   }
   if (CDN_HOSTS.includes(url.hostname)) {
-    event.respondWith(cacheFirst(req, ASSET_CACHE));
+    event.respondWith(cacheFirst(event, ASSET_CACHE));
     return;
   }
   if (TILE_HOSTS.includes(url.hostname)) {
-    event.respondWith(cacheFirst(req, TILE_CACHE, TILE_LIMIT));
+    event.respondWith(cacheFirst(event, TILE_CACHE, TILE_LIMIT));
     return;
   }
-  // それ以外は素通し(失敗時のみキャッシュを見る)
-  event.respondWith(fetch(req).catch(() => caches.match(req)));
+  // それ以外は素通し(失敗時のみキャッシュを見る)。
+  // キャッシュにも無い場合は undefined を返さないよう、明示的にネットワークエラーを返す
+  // (respondWith(undefined) は TypeError になるため)。
+  event.respondWith(
+    fetch(req).catch(async () => (await caches.match(req)) || Response.error())
+  );
 });
 
-async function handleNavigate(req) {
+async function handleNavigate(event) {
+  const req = event.request;
   try {
     const res = await fetch(req);
     if (res && res.ok) {
-      const cache = await caches.open(SHELL_CACHE);
-      cache.put(req, res.clone());
+      // キャッシュへの書き込みは waitUntil で保護する。
+      // レスポンスを返した直後にSWが停止して書き込みが中断されるのを防ぐ。
+      const copy = res.clone();
+      event.waitUntil(caches.open(SHELL_CACHE).then((cache) => cache.put(req, copy)));
     }
     return res;
   } catch (e) {
@@ -139,7 +187,8 @@ async function handleNavigate(req) {
 }
 
 // 取得済みならキャッシュを返し、無ければ取得して保存する
-async function cacheFirst(req, cacheName, limit) {
+async function cacheFirst(event, cacheName, limit) {
+  const req = event.request;
   const cache = await caches.open(cacheName);
   const cached = await cache.match(req);
   if (cached) return cached;
@@ -147,8 +196,14 @@ async function cacheFirst(req, cacheName, limit) {
     const res = await fetch(req);
     // opaque(CORS なしの他オリジン。タイル等)は status 0 なので type で判定する
     if (res && (res.ok || res.type === "opaque")) {
-      await cache.put(req, res.clone());
-      if (limit) trimCache(cacheName, limit);
+      // 保存と上限調整は waitUntil で保護し、SW停止で中断されないようにする
+      const copy = res.clone();
+      event.waitUntil(
+        (async () => {
+          await cache.put(req, copy);
+          if (limit) await trimCache(cacheName, limit);
+        })()
+      );
     }
     return res;
   } catch (e) {
