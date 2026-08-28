@@ -1,0 +1,55 @@
+{
+  "id": "/japan-snowfall-viz/",
+  "name": "日本の豪雪地帯マップ(2016年度)",
+  "short_name": "豪雪マップ",
+  "description": "国土数値情報をもとにした、日本の豪雪地帯・特別豪雪地帯の指定区域と気象観測点の可視化(2D地図 / 3Dビュー)。",
+  "lang": "ja",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f9f9f7",
+  "theme_color": "#f9f9f7",
+  "categories": ["education", "travel", "utilities"],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "2D地図を開く",
+      "short_name": "2D地図",
+      "url": "./index.html",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "3Dビューを開く",
+      "short_name": "3Dビュー",
+      "url": "./3d.html",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

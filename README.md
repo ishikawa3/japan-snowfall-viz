@@ -34,6 +34,9 @@ web/data/japan_pref.geojson  # 3Dビューの都道府県境界(Natural Earth 10
 web/data/gosetsu.geojson     # 指定区域の表示用データ(build-data.shが生成)
 web/data/stations_maxdepth.geojson  # 観測点・最深積雪(build-stations.shが生成)
 web/data/stations_snowfall.geojson  # 観測点・累計降雪量(build-stations.shが生成)
+web/manifest.webmanifest     # PWA マニフェスト(アプリ名・アイコン・表示モード)
+web/sw.js                    # Service Worker(オフライン対応のキャッシュ制御)
+web/icons/                   # PWA/ファビコン用アイコン(雪の結晶、PNG + SVG)
 ```
 
 ## 3Dビュー(Three.js + WebGL)
@@ -53,6 +56,44 @@ Three.js + WebGL で立体表示する別アプリです(公開URL: `.../3d.html
 Three.js(r160、MITライセンス)は CDN ではなく `web/vendor/three/` に同梱しているため、
 外部への追加リクエストなしで動作します(CDN障害やネットワーク遮断の影響を受けません)。
 2D版(`index.html`)は従来どおり MapLibre GL JS を CDN から読み込みます。
+
+## PWA(インストール・オフライン対応)
+
+2D地図版・3Dビューの両方が PWA(Progressive Web App)として動作します。
+
+- **インストール**: スマホ・PCのブラウザから「ホーム画面に追加」/「アプリをインストール」で、
+  スタンドアロン表示(ブラウザUIなし)のアプリとして起動できます。
+  Android のロングタップ用ショートカットから「2D地図」「3Dビュー」を直接開けます。
+- **オフライン対応**: `web/sw.js`(Service Worker)がリソースをキャッシュします。
+  - **3Dビューは一度オンラインで開けば完全にオフラインで動作します**
+    (Three.js・GeoJSON をすべて同一オリジンに同梱しているため)。
+  - 2D地図版はオフラインでもアプリ自体は起動し、閲覧済みの範囲の地理院タイルは表示されます
+    (未取得のタイルは表示できません)。
+  - 初回訪問では Service Worker が制御を取る前にページ側のデータ取得が終わってしまうため、
+    ページ読み込み後に SW へ `WARM_CACHE` を送り、データ・ライブラリをバックグラウンドで
+    キャッシュしています(取得済みならスキップ)。これにより**1回目の訪問だけでオフライン化が完了**します。
+  - 温める対象はページごとに分けています(`profile`)。2D地図版は観測点・指定区域のデータのみ、
+    3Dビューはそれに加えて地形データと Three.js。2D地図版しか使わない利用者が
+    3D専用の資産まで取得してしまうのを避けるためです。
+
+キャッシュ戦略はリソースの性質ごとに分けています(詳細は `web/sw.js` 冒頭のコメント)。
+
+| 対象 | 戦略 |
+| --- | --- |
+| HTML・manifest・アイコン | install 時にプリキャッシュ。ページ遷移は network-first(更新を即反映、オフライン時はキャッシュ) |
+| `data/*.geojson`・`vendor/three/*` | cache-first(合計6MB超のため再取得しない) |
+| CDN(unpkg の MapLibre) | cache-first(URLにバージョンを含み内容が変わらないため) |
+| 地理院タイル | cache-first + 上限300枚(超過分は古いものから削除) |
+
+キャッシュ名には `japan-snowfall-viz-` の接頭辞を付け、古いキャッシュの削除時はこの接頭辞のものだけを
+対象にしています(`user.github.io` は他のリポジトリのページとオリジンを共有するため、
+他アプリのキャッシュを巻き添えで消さないようにするため)。
+
+> **メンテナンス時の注意**: `web/data/` のデータや `web/vendor/` のライブラリを更新したときは、
+> `web/sw.js` の `VERSION`(`const VERSION = "v1";`)を必ず上げてください。
+> これらは cache-first のため、VERSION を上げないと古いキャッシュが使われ続けます。
+> VERSION を変更すると旧キャッシュが破棄され、新しいデータを取り直します。
+> HTML は network-first なので、HTMLだけの変更では VERSION 更新は不要です。
 
 ## セットアップ
 
@@ -108,6 +149,10 @@ python3 -m http.server 8000
 画面右上のコントロールで指定区域ポリゴンの表示/非表示と、観測点レイヤー
 (なし / 最深積雪 / 累計降雪量)を切り替えられます。左側のパネルには都道府県別の
 指定市区町村数の集計が表示され、行をクリックするとその都道府県へズームします。
+
+Service Worker は `localhost`(セキュアコンテキスト扱い)でも有効なため、ローカルでも
+PWA の動作を確認できます。`file://` で直接開いた場合は登録をスキップし、通常のページとして動作します。
+キャッシュを消してから確認したいときは、DevTools の Application → Storage → Clear site data を使ってください。
 
 ## 属性スキーマ(A22-2016)
 
