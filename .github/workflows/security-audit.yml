@@ -1,0 +1,212 @@
+# 週次セキュリティチェック
+#
+# 毎週月曜 9:00(JST)に次を調べ、結果を Issue(ラベル security-audit)にまとめる。
+#   - 依存パッケージの既知の脆弱性: npm / pnpm / Cargo の lockfile を自動で探して audit する
+#   - CDN から integrity(SRI)なしで読み込んでいるスクリプト・スタイル
+# 検出があれば Issue を作成(既にあれば本文を更新してコメント)し、ゼロになったら自動で閉じる。
+# 手動実行: Actions タブの「Weekly security audit」→ Run workflow
+#
+# このファイルは5リポジトリ(activity-range / weather / japan-grid-map /
+# japan-snowfall-viz / rss)で共通。直すときは全リポジトリに同じ変更を入れる。
+name: Weekly security audit
+
+on:
+  schedule:
+    - cron: "0 0 * * 1" # 毎週月曜 00:00 UTC = 09:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: security-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install cargo-audit
+        if: hashFiles('**/Cargo.lock') != ''
+        run: cargo install cargo-audit --locked
+
+      - name: Run audits
+        id: audit
+        shell: bash
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          set -uo pipefail
+          REPORT="$RUNNER_TEMP/report.md"
+          DETAILS="$RUNNER_TEMP/details.md"
+          : > "$REPORT"; : > "$DETAILS"
+          total=0
+
+          sev_line() { # $1 = {info,low,moderate,high,critical} の JSON
+            jq -r '"critical \(.critical // 0) / high \(.high // 0) / moderate \(.moderate // 0) / low \(.low // 0) / info \(.info // 0)"' <<<"$1"
+          }
+          # audit の JSON から深刻度ごとの件数を取り出す。取得に失敗したら FAILED を返す
+          counts() {
+            jq -ce '.metadata.vulnerabilities | select(type == "object")' 2>/dev/null || echo FAILED
+          }
+          add_detail() { # $1 = 見出し, $2 = テキスト
+            {
+              echo "<details><summary>$1</summary>"; echo; echo '```'
+              head -c 15000 <<<"$2"; echo; echo '```'; echo "</details>"; echo
+            } >> "$DETAILS"
+          }
+
+          echo "## 依存パッケージ" >> "$REPORT"
+          echo >> "$REPORT"
+          echo "| 場所 | 全体 | うち本番依存 |" >> "$REPORT"
+          echo "|---|---|---|" >> "$REPORT"
+          rows=0
+          # $1=場所 $2=種類 $3=全体の件数JSON $4=本番依存の件数JSON $5=詳細テキスト
+          # 取得に失敗した場合も 1 件として数え、Issue で気づけるようにする
+          report_row() {
+            rows=$((rows + 1))
+            if [ "$3" = FAILED ]; then
+              total=$((total + 1))
+              echo "| \`$1\` ($2) | 取得に失敗 | - |" >> "$REPORT"
+              add_detail "$2 audit: $1(失敗)" "$5"
+              return
+            fi
+            local n
+            n=$(jq '[.critical,.high,.moderate,.low,.info] | map(. // 0) | add' <<<"$3")
+            total=$((total + n))
+            local prod="-"
+            [ "$4" != FAILED ] && prod=$(sev_line "$4")
+            echo "| \`$1\` ($2) | $(sev_line "$3") | $prod |" >> "$REPORT"
+            [ "$n" -gt 0 ] && add_detail "$2 audit: $1" "$5"
+          }
+
+          # npm
+          # ルートに package.json があるのに lockfile をコミットしていない場合(rss など)は、
+          # その場で lockfile を作って監査する(コミットはしない)
+          if [ -f package.json ] && [ ! -f package-lock.json ] && [ ! -f pnpm-lock.yaml ] && [ ! -f yarn.lock ]; then
+            if ! out=$(npm install --package-lock-only --ignore-scripts --no-audit --no-fund 2>&1); then
+              # 作れなかったら監査できていないので、検出なしと誤判定しないよう失敗として数える
+              report_row "." npm FAILED FAILED "$out"
+            fi
+          fi
+          while IFS= read -r lock; do
+            dir=$(dirname "$lock")
+            all=$(cd "$dir" && npm audit --json 2>/dev/null | counts)
+            prod=$(cd "$dir" && npm audit --omit=dev --json 2>/dev/null | counts)
+            report_row "$dir" npm "$all" "$prod" "$(cd "$dir" && npm audit 2>&1)"
+          done < <({ git ls-files '*package-lock.json'; [ -f package-lock.json ] && echo package-lock.json; } | grep -v node_modules | sort -u)
+
+          # pnpm(packageManager に書かれたバージョンを corepack で使う)
+          while IFS= read -r lock; do
+            dir=$(dirname "$lock")
+            corepack enable >/dev/null 2>&1
+            all=$(cd "$dir" && pnpm audit --json 2>/dev/null | counts)
+            prod=$(cd "$dir" && pnpm audit --prod --json 2>/dev/null | counts)
+            report_row "$dir" pnpm "$all" "$prod" "$(cd "$dir" && pnpm audit 2>&1)"
+          done < <(git ls-files '*pnpm-lock.yaml' | grep -v node_modules)
+
+          # Cargo(Rust)
+          while IFS= read -r lock; do
+            dir=$(dirname "$lock")
+            # cargo audit は脆弱性があると非0で終わるため、終了コードではなく JSON の有無で成否を判断する
+            json=$(cd "$dir" && cargo audit --json 2>/dev/null || true)
+            n=$(jq -e '.vulnerabilities.count' <<<"$json" 2>/dev/null || echo FAILED)
+            rows=$((rows + 1))
+            if [ "$n" = FAILED ]; then
+              total=$((total + 1))
+              echo "| \`$dir\` (cargo) | 取得に失敗 | - |" >> "$REPORT"
+              add_detail "cargo audit: $dir(失敗)" "$(cd "$dir" && cargo audit 2>&1)"
+              continue
+            fi
+            total=$((total + n))
+            echo "| \`$dir\` (cargo) | $n 件 | - |" >> "$REPORT"
+            [ "$n" -gt 0 ] && add_detail "cargo audit: $dir" "$(cd "$dir" && cargo audit 2>&1)"
+          done < <(git ls-files '*Cargo.lock')
+
+          [ "$rows" -eq 0 ] && echo "| (lockfile なし) | - | - |" >> "$REPORT"
+          echo >> "$REPORT"
+
+          # CDN から integrity なしで読み込んでいる <script> / <link rel=stylesheet>
+          # (Google Fonts の CSS は中身が動的に変わり SRI を付けられないため対象外)
+          echo "## CDN の読み込み(SRI なし)" >> "$REPORT"
+          echo >> "$REPORT"
+          # タグが複数行にまたがる場合や、属性が単引用符の場合も拾えるよう、ファイル全体をタグ単位で調べる
+          cdn=$(git ls-files -z '*.html' '*.hbs' | xargs -0 -r node -e '
+            const fs = require("fs");
+            for (const file of process.argv.slice(1)) {
+              const text = fs.readFileSync(file, "utf8");
+              for (const m of text.matchAll(/<(script|link)\b[^>]*>/gis)) {
+                const tag = m[0];
+                const attr = (name) => (tag.match(new RegExp(`\\s${name}\\s*=\\s*(["\x27])(.*?)\\1`, "is")) || [])[2];
+                const url = attr(m[1].toLowerCase() === "script" ? "src" : "href");
+                if (!url || !/^(https?:)?\/\//i.test(url)) continue;
+                if (m[1].toLowerCase() === "link" && !/\bstylesheet\b/i.test(attr("rel") || "")) continue;
+                if (attr("integrity") !== undefined || /fonts\.googleapis\.com/i.test(url)) continue;
+                const line = text.slice(0, m.index).split("\n").length;
+                console.log(`${file}:${line}: ${url}`);
+              }
+            }' || true)
+          if [ -n "$cdn" ]; then
+            n=$(wc -l <<<"$cdn"); total=$((total + n))
+            echo '```' >> "$REPORT"; echo "$cdn" | cut -c1-200 >> "$REPORT"; echo '```' >> "$REPORT"
+          else
+            echo "なし" >> "$REPORT"
+          fi
+          echo >> "$REPORT"
+
+          if [ -s "$DETAILS" ]; then
+            { echo "## 詳細"; echo; cat "$DETAILS"; } >> "$REPORT"
+          fi
+          {
+            echo "---"
+            echo "実行: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            echo "本番依存の脆弱性は公開サイトの利用者に影響しうるため優先して対応する。開発依存(ビルド・テスト用)は公開サイトには入らない。"
+          } >> "$REPORT"
+
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          echo "report=$REPORT" >> "$GITHUB_OUTPUT"
+          cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create, update or close the issue
+        uses: actions/github-script@v7
+        env:
+          TOTAL: ${{ steps.audit.outputs.total }}
+          REPORT: ${{ steps.audit.outputs.report }}
+        with:
+          script: |
+            const fs = require('fs');
+            const LABEL = 'security-audit';
+            const total = Number(process.env.TOTAL || 0);
+            let body = fs.readFileSync(process.env.REPORT, 'utf8');
+            if (body.length > 60000) body = body.slice(0, 60000) + '\n\n(長いため省略。全文は実行ログのサマリーを参照)';
+            const { owner, repo } = context.repo;
+
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: LABEL });
+            } catch {
+              await github.rest.issues.createLabel({ owner, repo, name: LABEL, color: 'd73a4a', description: '週次セキュリティチェックの結果' });
+            }
+            const open = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: LABEL, per_page: 1 });
+            const existing = open.data[0];
+            const today = new Date().toLocaleDateString('ja-JP', { timeZone: 'Asia/Tokyo' });
+
+            if (total > 0) {
+              const title = `週次セキュリティチェック: ${total} 件の検出`;
+              if (existing) {
+                await github.rest.issues.update({ owner, repo, issue_number: existing.number, title, body });
+                await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: `${today} の結果で本文を更新しました(${total} 件)。` });
+              } else {
+                await github.rest.issues.create({ owner, repo, title, body, labels: [LABEL] });
+              }
+            } else if (existing) {
+              await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: `${today} のチェックで検出がなくなったため閉じます。\n\n${body}` });
+              await github.rest.issues.update({ owner, repo, issue_number: existing.number, state: 'closed', state_reason: 'completed' });
+            }

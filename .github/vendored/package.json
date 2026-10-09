@@ -1,0 +1,9 @@
+{
+  "name": "japan-snowfall-viz-vendored",
+  "private": true,
+  "description": "web/vendor/ に同梱しているライブラリのバージョン一覧。インストール用ではなく、週次セキュリティチェック(npm audit)と GitHub の脆弱性アラートに同梱ライブラリを認識させるためのもの。web/vendor/ を更新したら、ここのバージョンも合わせて npm install --package-lock-only で lockfile を作り直すこと",
+  "dependencies": {
+    "maplibre-gl": "6.11.2",
+    "three": "0.160.0"
+  }
+}

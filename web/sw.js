@@ -7,25 +7,22 @@
  *     install 時にプリキャッシュ。ナビゲーションは network-first にして
  *     デプロイ後の更新をすぐ拾い、オフライン時はキャッシュにフォールバックする。
  *
- *  2. データ(data/*.geojson)とライブラリ(vendor/three/*)
- *     合計 6MB 超と大きいため cache-first(取得後は再検証しない)。
+ *  2. データ(data/*.geojson)とライブラリ(vendor/three/*・vendor/maplibre-gl/*)
+ *     合計 7MB 超と大きいため cache-first(取得後は再検証しない)。
  *     毎回の再取得を避け、モバイル回線の通信量を抑える。
  *     ★データやライブラリを更新したときは下の VERSION を必ず上げること。
  *       (VERSION が変わると旧キャッシュを破棄して取り直す)
  *
- *  3. CDN(unpkg の MapLibre。2D地図版のみ使用)
- *     URL にバージョンが含まれ内容が変わらないため cache-first。
- *
- *  4. 地理院タイル(2D地図版の背景地図)
+ *  3. 地理院タイル(2D地図版の背景地図)
  *     cache-first + 上限つき(TILE_LIMIT)。上限を超えたら古いものから削除する。
  *     枚数が無制限に増えるとストレージを圧迫するため。
  *
  * 3Dビュー(3d.html)は Three.js もデータもすべて同一オリジンに同梱しているため、
- * 一度オンラインで開けば完全にオフラインで動作する。2D地図版は上記 3〜4 の
- * キャッシュが溜まった範囲(閲覧済みのタイル)でオフライン表示できる。
+ * 一度オンラインで開けば完全にオフラインで動作する。2D地図版も MapLibre を同梱して
+ * いるので、上記 3 のキャッシュが溜まった範囲(閲覧済みのタイル)でオフライン表示できる。
  */
 
-const VERSION = "v1";
+const VERSION = "v2";
 
 // このSWが管理するキャッシュの接頭辞。
 // GitHub Pages(user.github.io)は同一オリジンを他のリポジトリのページと共有するため、
@@ -66,7 +63,14 @@ const WARM_2D = [
   "./data/stations_snowfall.geojson",
 ];
 const WARM_SETS = {
-  "2d": WARM_2D,
+  // 2D地図版はデータに加えて MapLibre が必要
+  "2d": [
+    ...WARM_2D,
+    "./vendor/maplibre-gl/maplibre-gl.mjs",
+    "./vendor/maplibre-gl/maplibre-gl-shared.mjs",
+    "./vendor/maplibre-gl/maplibre-gl-worker.mjs",
+    "./vendor/maplibre-gl/maplibre-gl.css",
+  ],
   // 3Dビューは 2D と同じデータに加えて、地形と Three.js が必要
   "3d": [
     ...WARM_2D,
@@ -77,7 +81,6 @@ const WARM_SETS = {
   ],
 };
 
-const CDN_HOSTS = ["unpkg.com"];
 const TILE_HOSTS = ["cyberjapandata.gsi.go.jp"];
 
 self.addEventListener("install", (event) => {
@@ -163,10 +166,6 @@ self.addEventListener("fetch", (event) => {
   if (sameOrigin) {
     // アイコンや manifest など、その他の同一オリジン資産
     event.respondWith(cacheFirst(event, SHELL_CACHE));
-    return;
-  }
-  if (CDN_HOSTS.includes(url.hostname)) {
-    event.respondWith(cacheFirst(event, ASSET_CACHE));
     return;
   }
   if (TILE_HOSTS.includes(url.hostname)) {
