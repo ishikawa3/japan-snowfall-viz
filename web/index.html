@@ -38,14 +38,12 @@
 <meta name="application-name" content="豪雪マップ" />
 
 <!-- 外部オリジンへの接続を前倒し(初期表示の短縮) -->
-<link rel="preconnect" href="https://unpkg.com" crossorigin />
 <link rel="preconnect" href="https://cyberjapandata.gsi.go.jp" />
 <link rel="dns-prefetch" href="https://cyberjapandata.gsi.go.jp" />
-<link
-  href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
-  rel="stylesheet"
-/>
-<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<!-- MapLibre GL は CDN ではなく vendor/ に同梱する(3Dビューの Three.js と同じ扱い)。
+     CDN 側の改ざん・障害の影響を受けないようにするため。v6 は ESM 専用配布なので
+     本体スクリプトは type="module" で import する。更新時は sw.js の VERSION も上げること -->
+<link href="./vendor/maplibre-gl/maplibre-gl.css" rel="stylesheet" />
 <style>
   :root {
     --surface-1: #fcfcfb;
@@ -929,7 +927,9 @@
 
 <div id="toast" role="status" aria-live="polite"></div>
 
-<script>
+<script type="module">
+  import * as maplibregl from "./vendor/maplibre-gl/maplibre-gl.mjs";
+
   // ══════════════════════════════════════════════════════════════
   // 多言語対応(i18n)
   // ══════════════════════════════════════════════════════════════

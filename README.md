@@ -29,6 +29,7 @@ data/raw/a22m/               # A22-m-14 の生データ(zip・展開後shp、.gi
 web/index.html               # 地図アプリ本体(MapLibre GL JS、単一HTML)
 web/3d.html                  # 3Dビュー(Three.js + WebGL、同一データを立体表示、単一HTML)
 web/vendor/three/            # 同梱した Three.js r160(three.module.js / OrbitControls、MITライセンス)
+web/vendor/maplibre-gl/      # 同梱した MapLibre GL JS 6.11.2(ESM版、BSD-3-Clauseライセンス)
 web/data/japan.geojson       # 3Dビューのベースマップ用 日本地形(Natural Earth 10m を簡略化、パブリックドメイン)
 web/data/japan_pref.geojson  # 3Dビューの都道府県境界(Natural Earth 10m admin_1 の内部境界のみ抽出、パブリックドメイン)
 web/data/gosetsu.geojson     # 指定区域の表示用データ(build-data.shが生成)
@@ -55,7 +56,8 @@ Three.js + WebGL で立体表示する別アプリです(公開URL: `.../3d.html
 
 Three.js(r160、MITライセンス)は CDN ではなく `web/vendor/three/` に同梱しているため、
 外部への追加リクエストなしで動作します(CDN障害やネットワーク遮断の影響を受けません)。
-2D版(`index.html`)は従来どおり MapLibre GL JS を CDN から読み込みます。
+2D版(`index.html`)の MapLibre GL JS(v6.11.2、BSD-3-Clause)も同様に `web/vendor/maplibre-gl/` に同梱しています。
+v6 は ESM 専用配布のため、`index.html` の本体スクリプトは `type="module"` で import しています。
 
 ## PWA(インストール・オフライン対応)
 
@@ -81,8 +83,7 @@ Three.js(r160、MITライセンス)は CDN ではなく `web/vendor/three/` に�
 | 対象 | 戦略 |
 | --- | --- |
 | HTML・manifest・アイコン | install 時にプリキャッシュ。ページ遷移は network-first(更新を即反映、オフライン時はキャッシュ) |
-| `data/*.geojson`・`vendor/three/*` | cache-first(合計6MB超のため再取得しない) |
-| CDN(unpkg の MapLibre) | cache-first(URLにバージョンを含み内容が変わらないため) |
+| `data/*.geojson`・`vendor/*`(Three.js・MapLibre) | cache-first(合計7MB超のため再取得しない) |
 | 地理院タイル | cache-first + 上限300枚(超過分は古いものから削除) |
 
 キャッシュ名には `japan-snowfall-viz-` の接頭辞を付け、古いキャッシュの削除時はこの接頭辞のものだけを
@@ -90,7 +91,7 @@ Three.js(r160、MITライセンス)は CDN ではなく `web/vendor/three/` に�
 他アプリのキャッシュを巻き添えで消さないようにするため)。
 
 > **メンテナンス時の注意**: `web/data/` のデータや `web/vendor/` のライブラリを更新したときは、
-> `web/sw.js` の `VERSION`(`const VERSION = "v1";`)を必ず上げてください。
+> `web/sw.js` の `VERSION`(`const VERSION = "v2";`)を必ず上げてください。
 > これらは cache-first のため、VERSION を上げないと古いキャッシュが使われ続けます。
 > VERSION を変更すると旧キャッシュが破棄され、新しいデータを取り直します。
 > HTML は network-first なので、HTMLだけの変更では VERSION 更新は不要です。
