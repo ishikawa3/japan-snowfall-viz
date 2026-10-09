@@ -50,7 +50,7 @@ jobs:
           total=0
 
           sev_line() { # $1 = {info,low,moderate,high,critical} の JSON
-            jq -r '"critical \(.critical // 0) / high \(.high // 0) / moderate \(.moderate // 0) / low \(.low // 0)"' <<<"$1"
+            jq -r '"critical \(.critical // 0) / high \(.high // 0) / moderate \(.moderate // 0) / low \(.low // 0) / info \(.info // 0)"' <<<"$1"
           }
           # audit の JSON から深刻度ごとの件数を取り出す。取得に失敗したら FAILED を返す
           counts() {
@@ -79,7 +79,7 @@ jobs:
               return
             fi
             local n
-            n=$(jq '[.critical,.high,.moderate,.low] | map(. // 0) | add' <<<"$3")
+            n=$(jq '[.critical,.high,.moderate,.low,.info] | map(. // 0) | add' <<<"$3")
             total=$((total + n))
             local prod="-"
             [ "$4" != FAILED ] && prod=$(sev_line "$4")
@@ -112,7 +112,9 @@ jobs:
           # Cargo(Rust)
           while IFS= read -r lock; do
             dir=$(dirname "$lock")
-            n=$(cd "$dir" && cargo audit --json 2>/dev/null | jq -e '.vulnerabilities.count' 2>/dev/null || echo FAILED)
+            # cargo audit は脆弱性があると非0で終わるため、終了コードではなく JSON の有無で成否を判断する
+            json=$(cd "$dir" && cargo audit --json 2>/dev/null || true)
+            n=$(jq -e '.vulnerabilities.count' <<<"$json" 2>/dev/null || echo FAILED)
             rows=$((rows + 1))
             if [ "$n" = FAILED ]; then
               total=$((total + 1))
@@ -132,9 +134,22 @@ jobs:
           # (Google Fonts の CSS は中身が動的に変わり SRI を付けられないため対象外)
           echo "## CDN の読み込み(SRI なし)" >> "$REPORT"
           echo >> "$REPORT"
-          cdn=$(git ls-files '*.html' '*.hbs' | xargs -r grep -nE '<(script|link)[^>]*(src|href)="https?://' 2>/dev/null \
-                | grep -vE 'integrity=|fonts\.googleapis\.com|rel="(preconnect|dns-prefetch|canonical|alternate|icon|manifest)"' \
-                | grep -E '<script|stylesheet' || true)
+          # タグが複数行にまたがる場合や、属性が単引用符の場合も拾えるよう、ファイル全体をタグ単位で調べる
+          cdn=$(git ls-files -z '*.html' '*.hbs' | xargs -0 -r node -e '
+            const fs = require("fs");
+            for (const file of process.argv.slice(1)) {
+              const text = fs.readFileSync(file, "utf8");
+              for (const m of text.matchAll(/<(script|link)\b[^>]*>/gis)) {
+                const tag = m[0];
+                const attr = (name) => (tag.match(new RegExp(`\\s${name}\\s*=\\s*(["\x27])(.*?)\\1`, "is")) || [])[2];
+                const url = attr(m[1].toLowerCase() === "script" ? "src" : "href");
+                if (!url || !/^(https?:)?\/\//i.test(url)) continue;
+                if (m[1].toLowerCase() === "link" && !/\bstylesheet\b/i.test(attr("rel") || "")) continue;
+                if (attr("integrity") !== undefined || /fonts\.googleapis\.com/i.test(url)) continue;
+                const line = text.slice(0, m.index).split("\n").length;
+                console.log(`${file}:${line}: ${url}`);
+              }
+            }' || true)
           if [ -n "$cdn" ]; then
             n=$(wc -l <<<"$cdn"); total=$((total + n))
             echo '```' >> "$REPORT"; echo "$cdn" | cut -c1-200 >> "$REPORT"; echo '```' >> "$REPORT"
