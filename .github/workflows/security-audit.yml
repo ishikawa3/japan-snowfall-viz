@@ -91,7 +91,10 @@ jobs:
           # ルートに package.json があるのに lockfile をコミットしていない場合(rss など)は、
           # その場で lockfile を作って監査する(コミットはしない)
           if [ -f package.json ] && [ ! -f package-lock.json ] && [ ! -f pnpm-lock.yaml ] && [ ! -f yarn.lock ]; then
-            npm install --package-lock-only --ignore-scripts --no-audit --no-fund >/dev/null 2>&1 || true
+            if ! out=$(npm install --package-lock-only --ignore-scripts --no-audit --no-fund 2>&1); then
+              # 作れなかったら監査できていないので、検出なしと誤判定しないよう失敗として数える
+              report_row "." npm FAILED FAILED "$out"
+            fi
           fi
           while IFS= read -r lock; do
             dir=$(dirname "$lock")
