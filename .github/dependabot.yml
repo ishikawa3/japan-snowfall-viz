@@ -1,0 +1,21 @@
+# Dependabot: 依存パッケージの更新PRを毎週月曜に作る。
+# 既知の脆弱性の修正PR(security updates)は、リポジトリの Settings → Code security で
+# 「Dependabot alerts」「Dependabot security updates」を有効にすると、この週次とは別に随時作られる。
+# マイナー・パッチ更新は1つのPRにまとめて、PRの数を抑える。
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 5
+    groups:
+      github-actions-minor-patch:
+        update-types: ["minor", "patch"]
+
+# web/vendor/ に同梱した MapLibre GL・Three.js はファイルを直接置いているため、Dependabot の
+# 更新PRの対象にしない(package.json だけ上がって実ファイルとずれるのを避ける)。
+# 脆弱性の検出は .github/vendored/package.json を通じて週次チェックと脆弱性アラートで行う。
