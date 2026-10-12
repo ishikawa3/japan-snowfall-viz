@@ -43,7 +43,9 @@ jobs:
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
         run: |
-          set -uo pipefail
+          # Actions の bash は -e 付きで起動するが、audit は検出があると非0で終わり、
+          # [ ... ] && ... も偽で非0になるため、失敗は各所で明示的に扱い -e は切る
+          set +e -uo pipefail
           REPORT="$RUNNER_TEMP/report.md"
           DETAILS="$RUNNER_TEMP/details.md"
           : > "$REPORT"; : > "$DETAILS"
