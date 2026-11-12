@@ -91,7 +91,8 @@ self.addEventListener("install", (event) => {
       // (HTTPキャッシュを迂回するため cache: "reload" を指定)
       await Promise.allSettled(
         SHELL_URLS.map(async (url) => {
-          const res = await fetch(new Request(url, { cache: "reload" }));
+          // バックグラウンドの事前取得なので、ページ側の取得と帯域を奪い合わないよう低優先度にする
+          const res = await fetch(new Request(url, { cache: "reload", priority: "low" }));
           if (res && res.ok) await cache.put(url, res);
         })
       );
@@ -136,7 +137,10 @@ async function warmAssets(urls) {
   for (const url of urls) {
     try {
       if (await cache.match(url)) continue;
-      const res = await fetch(url);
+      // ページ表示後のオフライン用キャッシュ充填。利用者の操作で発生する取得
+      // (観測点データ・地理院タイル等)を優先させるため低優先度で取得する
+      // (priority 非対応ブラウザでは無視され、通常の優先度になる)
+      const res = await fetch(url, { priority: "low" });
       if (res && res.ok) await cache.put(url, res);
     } catch (e) {
       /* オフライン等。次の訪問で再試行する */

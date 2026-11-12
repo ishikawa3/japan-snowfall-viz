@@ -37,7 +37,61 @@
 <meta name="apple-mobile-web-app-title" content="豪雪マップ" />
 <meta name="application-name" content="豪雪マップ" />
 
+<!-- import map は modulepreload より前に置く(モジュール取得の開始後に登録された
+     import map は無視されるブラウザがあるため、head 先頭側へ移動している) -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
+  }
+}
+</script>
+<!-- 読み込みの前倒し:
+     - Three.js 本体・OrbitControls は body 末尾の module の import でしか発見されないため modulepreload
+     - 5つのデータのうち最大(4.5MB)で描画開始の律速になる指定区域ポリゴンを preload。
+       as="fetch" の preload は fetch() 側(cors モード)と一致させるため crossorigin が必須 -->
+<link rel="modulepreload" href="./vendor/three/build/three.module.js" />
+<link rel="modulepreload" href="./vendor/three/examples/jsm/controls/OrbitControls.js" />
+<link rel="preload" href="./data/gosetsu.geojson" as="fetch" crossorigin fetchpriority="high" />
+<!-- 2D⇄3D 遷移(cross-document view transition)の描画ブロック:
+     タイトルパネルとローディング表示がパースされるまで新ページの描画を保留し、
+     空のページや「ローディングが後から被さる」状態へ向かってアニメーションしないようにする -->
+<link rel="expect" href="#loading" blocking="render" />
+
 <style>
+  /* ── 2D⇄3D のページ遷移アニメーション(cross-document view transitions) ──
+     両ページで opt-in する必要がある(index.html にも同じ規則あり)。
+     types はこのページへ「入ってくる」遷移の向き。3D へ進む = to-3d。
+     非対応ブラウザでは無視され、通常のページ遷移になる(段階的強化)。 */
+  @view-transition {
+    navigation: auto;
+    types: to-3d;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    @view-transition {
+      navigation: none;
+    }
+  }
+  /* 両ページに存在する要素は同じ名前を付けてモーフィングさせる */
+  #title-panel { view-transition-name: title-panel; }
+  #mode-switch { view-transition-name: mode-switch; }
+  ::view-transition-group(*) { animation-duration: 0.35s; }
+  :active-view-transition-type(to-3d) {
+    &::view-transition-old(root) {
+      animation: 0.35s ease-in both vt-slide-out-left;
+    }
+    &::view-transition-new(root) {
+      animation: 0.35s ease-out both vt-slide-in-right;
+    }
+  }
+  @keyframes vt-slide-out-left {
+    to { transform: translateX(-8%); opacity: 0; }
+  }
+  @keyframes vt-slide-in-right {
+    from { transform: translateX(8%); opacity: 0; }
+  }
+
   :root {
     --bg: #0b1020;
     --surface: rgba(17, 24, 44, 0.82);
@@ -63,7 +117,11 @@
     background: var(--bg);
   }
 
-  #scene { position: absolute; inset: 0; display: block; }
+  /* キャンバスの表示サイズは CSS で決める(JS 側は描画バッファの解像度だけを合わせる)。
+     innerWidth を inline style に書き込むと、読み込み初期に innerWidth が実幅より
+     大きく報告された場合(モバイル等)にその幅でレイアウトが固定され、横に
+     はみ出して右側のボタン・パネルが画面外に出てしまうため */
+  #scene { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 
   .panel {
     position: absolute;
@@ -82,6 +140,9 @@
     left: 12px;
     padding: 14px 16px;
     max-width: 320px;
+    /* ローディング表示(z-index:10)より手前に出す。2D からの遷移でモーフィングした
+       タイトルが直後にローディングの下へ隠れないようにし、読み込み中も 2D へ戻れるようにする */
+    z-index: 11;
   }
   #title-panel h1 {
     margin: 0;
@@ -199,13 +260,22 @@
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* --- コントロール(右上) --- */
+  /* モバイルでは popover="manual"(⚙ボタンで開閉。設定を変えながら3Dを見られるよう
+     外側タップでは閉じない)、PC では常時表示のパネル。popover 属性は常に付いているため、
+     UA の [popover] 既定スタイル(inset:0; margin:auto; 閉じている間 display:none 等)を打ち消す。 */
   #controls {
+    inset: auto;
     top: 12px;
     right: 12px;
+    margin: 0;
     padding: 12px 14px;
+    color: var(--text-primary);
     width: 220px;
     max-height: calc(100vh - 24px);
     overflow-y: auto;
+  }
+  @media (min-width: 641px) {
+    #controls { display: block; }
   }
   /* モバイル用: コントロール開閉トグル(既定は非表示 = PCでは常時パネル表示) */
   #controls-toggle {
@@ -315,7 +385,9 @@
   }
 
   /* --- 凡例(左下) --- */
+  /* 凡例自身の幅で注記の並びを切り替える(コンテナクエリ)。幅は width で確定している */
   #legend {
+    container: legend / inline-size;
     left: 12px;
     bottom: 12px;
     padding: 12px 14px;
@@ -347,6 +419,13 @@
     font-size: 11px;
     color: var(--text-muted);
     line-height: 1.5;
+  }
+  /* 横幅に余裕がある(モバイルの全幅表示など)ときは「高さの指標」と「地点数」を
+     1行に並べ、3Dシーンを覆う凡例の高さを抑える */
+  @container legend (width >= 320px) {
+    #legend-height { float: left; }
+    #legend-count { float: right; margin-left: 12px; }
+    #legend::after { content: ""; display: block; clear: both; }
   }
 
   /* --- ツールチップ --- */
@@ -470,14 +549,16 @@
     /* コントロールは既定で折りたたみ、⚙トグルで開閉するオーバーレイに */
     #controls-toggle { display: flex; }
     #controls {
-      display: none;
+      position: fixed;
       top: 64px;
       right: 12px;
       width: 210px;
       max-width: calc(100vw - 24px);
       max-height: calc(100vh - 76px);
     }
-    #controls.open { display: block; }
+    /* popover 非対応ブラウザ向けフォールバック(.open クラスで開閉)。
+       :popover-open を知らないブラウザでも規則全体が捨てられないよう :is() でまとめる */
+    #controls:not(:is(:popover-open, .open)) { display: none; }
     #legend { width: calc(100vw - 24px); }
     #credit { display: none; }
     /* モバイルではタップ目標を拡大(index.html と揃える) */
@@ -508,9 +589,9 @@
   </div>
 </div>
 
-<button id="controls-toggle" type="button" aria-expanded="false" data-i18n-aria="settings" aria-label="表示設定">⚙</button>
+<button id="controls-toggle" type="button" popovertarget="controls" data-i18n-aria="settings" aria-label="表示設定">⚙</button>
 
-<div id="controls" class="panel">
+<div id="controls" class="panel" popover="manual">
   <div class="group">
     <div class="label" data-i18n="lbl_dataset">データセット</div>
     <div class="seg" id="seg-dataset">
@@ -602,14 +683,6 @@
   <div id="loading-text">データを読み込んでいます…</div>
 </div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "./vendor/three/build/three.module.js",
-    "three/addons/": "./vendor/three/examples/jsm/"
-  }
-}
-</script>
 
 <script type="module">
 import * as THREE from "three";
@@ -790,7 +863,9 @@ function rampColor(t, out) {
 const canvas = document.getElementById("scene");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+// 表示サイズは CSS 任せ(第3引数 false で inline style を書かない)。解像度は実際の表示幅から取る
+const viewSize = () => [canvas.clientWidth || window.innerWidth, canvas.clientHeight || window.innerHeight];
+renderer.setSize(...viewSize(), false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const scene = new THREE.Scene();
@@ -798,7 +873,7 @@ scene.background = new THREE.Color(0x0b1020);
 scene.fog = new THREE.Fog(0x0b1020, 160, 340);
 
 const camera = new THREE.PerspectiveCamera(
-  50, window.innerWidth / window.innerHeight, 0.1, 2000
+  50, viewSize()[0] / viewSize()[1], 0.1, 2000
 );
 camera.position.set(0, 90, 120);
 
@@ -889,6 +964,15 @@ function assignPref(lon, lat) {
   return null;
 }
 
+// メインスレッドを一旦明け渡す。scheduler.yield() は継続処理を優先して再開でき、
+// 非対応ブラウザ(Safari 等)は setTimeout(0) にフォールバックする
+function yieldToMain() {
+  if (globalThis.scheduler && "yield" in globalThis.scheduler) {
+    return globalThis.scheduler.yield();
+  }
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 async function getJSON(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${url} (HTTP ${r.status} ${r.statusText})`);
@@ -928,21 +1012,31 @@ async function loadAll() {
   buildPrefIndex(gosetsu);
 
   // 観測点を配列化(投影座標 + 都道府県 + インデックス付き)
+  // 全観測点 × 指定区域ポリゴンの点内包判定は一括だとロングタスクになるため、
+  // 50ms ごとにメインスレッドを明け渡して分割実行する(読み込み中も操作・描画を止めない)
   const prefSet = new Set();
+  let deadline = performance.now() + 50;
   for (const [ds, fc] of [["maxdepth", maxdepth], ["snowfall", snowfall]]) {
-    datasets[ds] = fc.features.map((f, i) => {
+    const out = [];
+    for (let i = 0; i < fc.features.length; i++) {
+      const f = fc.features[i];
       const [lon, lat] = f.geometry.coordinates;
       const [x, z] = project(lon, lat);
       const p = f.properties;
       const pref = assignPref(lon, lat);
       if (pref) prefSet.add(pref);
-      return {
+      out.push({
         name: p.name, addr: p.addr, org: p.org,
         avg: p.avg, max: p.max, latest: p.latest, latestYear: p.latestYear,
         years: p.years, pref, idx: i,
         x, z,
-      };
-    });
+      });
+      if (performance.now() >= deadline) {
+        await yieldToMain();
+        deadline = performance.now() + 50;
+      }
+    }
+    datasets[ds] = out;
   }
   prefsPresent = PREF_ORDER.filter((p) => prefSet.has(p));
 
@@ -1235,8 +1329,8 @@ function onPointerMove(e) {
   pointerInside = true;
   pointer.px = e.clientX;
   pointer.py = e.clientY;
-  pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
-  pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  pointer.x = (e.clientX / canvas.clientWidth) * 2 - 1;
+  pointer.y = -(e.clientY / canvas.clientHeight) * 2 + 1;
 }
 renderer.domElement.addEventListener("pointermove", onPointerMove);
 renderer.domElement.addEventListener("pointerleave", () => {
@@ -1345,8 +1439,8 @@ renderer.domElement.addEventListener("pointerdown", (e) => {
 });
 renderer.domElement.addEventListener("pointerup", (e) => {
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6 || !bars) return;
-  pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
-  pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  pointer.x = (e.clientX / canvas.clientWidth) * 2 - 1;
+  pointer.y = -(e.clientY / canvas.clientHeight) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObject(bars);
   if (hits.length && hits[0].instanceId != null) selectStation(current[hits[0].instanceId]);
@@ -1410,11 +1504,19 @@ document.getElementById("pref-select").addEventListener("change", (e) => {
   pushHash();
 });
 
+// スライダーのドラッグ中は input が 1 フレームに何度も発火する。毎回 InstancedMesh を
+// 作り直すと次の描画が遅れる(INP 悪化)ため、数値表示だけ即時に更新し、
+// 再構築と URL 更新は次フレームにまとめて 1 回だけ行う
+let thrRaf = 0;
 document.getElementById("thr").addEventListener("input", (e) => {
   state.threshold = Number(e.target.value);
   document.getElementById("thr-val").textContent = Math.round(state.threshold).toLocaleString();
-  rebuildBars();
-  pushHash();
+  if (thrRaf) return;
+  thrRaf = requestAnimationFrame(() => {
+    thrRaf = 0;
+    rebuildBars();
+    pushHash();
+  });
 });
 
 document.getElementById("chk-rotate").addEventListener("change", (e) => {
@@ -1430,12 +1532,34 @@ document.getElementById("lang-select").addEventListener("change", (e) => {
 });
 
 // モバイル: コントロールパネルの開閉(初期表示はすっきり折りたたみ)
+// 対応ブラウザでは popovertarget 属性で開閉(状態の公開・トップレイヤー表示はブラウザ任せ)。
+// Popover API 非対応ブラウザでは .open クラスの切り替えにフォールバックする。
 const controlsToggleBtn = document.getElementById("controls-toggle");
-controlsToggleBtn.addEventListener("click", () => {
-  const el = document.getElementById("controls");
-  const open = el.classList.toggle("open");
-  controlsToggleBtn.setAttribute("aria-expanded", String(open));
-  controlsToggleBtn.textContent = open ? "✕" : "⚙";
+const controlsEl = document.getElementById("controls");
+const HAS_POPOVER = Object.hasOwn(HTMLElement.prototype, "popover");
+if (HAS_POPOVER) {
+  controlsEl.addEventListener("toggle", (e) => {
+    controlsToggleBtn.textContent = e.newState === "open" ? "✕" : "⚙";
+  });
+} else {
+  controlsToggleBtn.setAttribute("aria-expanded", "false");
+  controlsToggleBtn.setAttribute("aria-controls", "controls");
+  controlsToggleBtn.addEventListener("click", () => {
+    const open = controlsEl.classList.toggle("open");
+    controlsToggleBtn.setAttribute("aria-expanded", String(open));
+    controlsToggleBtn.textContent = open ? "✕" : "⚙";
+  });
+}
+// モバイル用 popover を開いたまま PC 幅になったら、トップレイヤーから降ろして常時表示パネルに戻す
+matchMedia("(min-width: 641px)").addEventListener("change", (e) => {
+  if (!e.matches) return;
+  if (HAS_POPOVER) {
+    if (controlsEl.matches(":popover-open")) controlsEl.hidePopover();
+  } else {
+    controlsEl.classList.remove("open");
+    controlsToggleBtn.setAttribute("aria-expanded", "false");
+    controlsToggleBtn.textContent = "⚙";
+  }
 });
 
 document.getElementById("share-btn").addEventListener("click", async () => {
@@ -1544,9 +1668,10 @@ function selectByIndex(idx) {
 }
 
 window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  const [w, h] = viewSize();
+  camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(w, h, false);
 });
 
 // ---------------------------------------------------------------------------
