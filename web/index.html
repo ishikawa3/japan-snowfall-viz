@@ -44,7 +44,63 @@
      CDN 側の改ざん・障害の影響を受けないようにするため。v6 は ESM 専用配布なので
      本体スクリプトは type="module" で import する。更新時は sw.js の VERSION も上げること -->
 <link href="./vendor/maplibre-gl/maplibre-gl.css" rel="stylesheet" />
+<!-- 読み込みの前倒し:
+     - 指定区域ポリゴン(4.5MB)は地図の主要コンテンツで、取得完了までローディング表示が
+       消えない。本体スクリプト(body末尾の module)の実行を待たずに取得を開始し、
+       fetchpriority="high" で地理院タイル等より優先する。as="fetch" の preload は
+       fetch() 側のリクエストモード(cors)と一致させるため crossorigin が必須。
+     - MapLibre 本体はインライン module の import でしか発見されないため modulepreload で先読み -->
+<link rel="preload" href="data/gosetsu.geojson" as="fetch" crossorigin fetchpriority="high" />
+<link rel="modulepreload" href="./vendor/maplibre-gl/maplibre-gl.mjs" />
+<!-- 2D⇄3D 遷移(cross-document view transition)の描画ブロック:
+     共有要素(タイトルパネル)がパースされるまで新ページの描画を保留し、
+     空のページへ向かってアニメーションしてしまうのを防ぐ -->
+<link rel="expect" href="#title-panel" blocking="render" />
 <style>
+  /* ── 2D⇄3D のページ遷移アニメーション(cross-document view transitions) ──
+     両ページで opt-in する必要がある(3d.html にも同じ規則あり)。
+     types はこのページへ「入ってくる」遷移の向き。2D へ戻る = to-2d。
+     非対応ブラウザでは無視され、通常のページ遷移になる(段階的強化)。 */
+  @view-transition {
+    navigation: auto;
+    types: to-2d;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    @view-transition {
+      navigation: none;
+    }
+  }
+  /* 両ページに存在する要素は同じ名前を付けてモーフィングさせる */
+  #title-panel {
+    view-transition-name: title-panel;
+  }
+  #mode-switch {
+    view-transition-name: mode-switch;
+  }
+  ::view-transition-group(*) {
+    animation-duration: 0.35s;
+  }
+  :active-view-transition-type(to-2d) {
+    &::view-transition-old(root) {
+      animation: 0.35s ease-in both vt-slide-out-right;
+    }
+    &::view-transition-new(root) {
+      animation: 0.35s ease-out both vt-slide-in-left;
+    }
+  }
+  @keyframes vt-slide-out-right {
+    to {
+      transform: translateX(8%);
+      opacity: 0;
+    }
+  }
+  @keyframes vt-slide-in-left {
+    from {
+      transform: translateX(-8%);
+      opacity: 0;
+    }
+  }
+
   :root {
     --surface-1: #fcfcfb;
     --page-plane: #f9f9f7;
@@ -188,14 +244,20 @@
     cursor: pointer;
   }
 
+  /* 言語メニューは popover(トップレイヤー表示・外側タップ/Esc で自動的に閉じる)。
+     トップレイヤーではボタン基準の absolute 配置が効かないため、表示位置は
+     開く直前(beforetoggle)に JS でボタンの位置から計算して --menu-top/--menu-right に入れる。
+     UA の [popover] 既定スタイル(inset:0; margin:auto; padding 等)はここで打ち消す。 */
   #lang-menu {
-    position: absolute;
+    position: fixed;
     z-index: 6;
-    top: 100%;
-    right: 0;
-    margin-top: 6px;
-    display: none;
+    inset: auto;
+    top: var(--menu-top, 54px);
+    right: var(--menu-right, 54px);
+    margin: 0;
+    padding: 0;
     min-width: 150px;
+    color: var(--text-primary);
     background: var(--surface-1);
     border: 1px solid var(--border-hairline);
     border-radius: 8px;
@@ -203,8 +265,10 @@
     overflow: hidden;
   }
 
-  #lang-menu.open {
-    display: block;
+  /* popover 非対応ブラウザ向けのフォールバック(.open クラスで開閉)。
+     :popover-open を知らないブラウザでも規則全体が捨てられないよう :is() でまとめる */
+  #lang-menu:not(:is(:popover-open, .open)) {
+    display: none;
   }
 
   .lang-option {
@@ -325,12 +389,25 @@
   }
 
   /* ── レイヤー切替パネル ───────────────────────────── */
+  /* モバイルでは popover(トグルボタンで開閉・外側タップ/Esc で閉じる)、
+     PC では常時表示のパネル。popover 属性は常に付いているため、UA の [popover]
+     既定スタイル(inset:0; margin:auto; 閉じている間 display:none 等)を打ち消す。 */
   #layer-switch-panel {
+    inset: auto;
     top: 96px;
     right: 12px;
+    margin: 0;
     padding: 10px 14px;
     font-size: 12px;
+    color: var(--text-primary);
     width: 200px;
+    overflow: visible;
+  }
+
+  @media (min-width: 641px) {
+    #layer-switch-panel {
+      display: block;
+    }
   }
 
   #layer-switch-panel .section-title {
@@ -368,7 +445,12 @@
   /* top はタイトルパネルの実測高さ(--title-h、JSで言語切替のたびに再計算)
      に追随させる。言語によってタイトル・説明文の長さが変わり折り返し行数が
      変わっても、下のパネルと重ならないようにするため。 */
+  /* パネル自身の幅に応じて行レイアウトを切り替える(コンテナクエリ)。
+     モバイルでは left/right 指定で幅が端末幅・言語ごとのボタン幅に応じて変わるため、
+     ビューポート幅ではなくパネル幅で判断する。幅は width または left+right で
+     確定しているので inline-size 封じ込めをかけても潰れない。 */
   #pref-panel {
+    container: pref-panel / inline-size;
     top: calc(var(--title-h, 164px) + 16px);
     left: 12px;
     width: 260px;
@@ -469,6 +551,34 @@
   .pref-row-sub {
     font-size: 10.5px;
     color: var(--text-muted);
+  }
+
+  /* 狭いパネル: 操作ヒントを省いて縦の空きを確保 */
+  @container pref-panel (width < 240px) {
+    #pref-panel-body .pref-hint {
+      display: none;
+    }
+    .pref-row-sub {
+      font-size: 10px;
+    }
+  }
+
+  /* 広いパネル: 棒グラフと特別豪雪の内訳を1行に並べ、行の高さを詰める */
+  @container pref-panel (width >= 290px) {
+    .pref-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      align-content: center;
+      column-gap: 10px;
+      row-gap: 3px;
+    }
+    .pref-row-top {
+      grid-column: 1 / -1;
+    }
+    .pref-row-sub {
+      white-space: nowrap;
+    }
   }
 
   #source-panel {
@@ -725,15 +835,16 @@
 
     /* レイヤー切替パネル: アイコンボタンで開閉するオーバーレイに */
     #layer-switch-panel {
-      display: none;
+      position: fixed;
       top: 108px;
       right: 12px;
       width: 200px;
       max-width: calc(100% - 24px);
-    }
-    #layer-switch-panel.open {
-      display: block;
       z-index: 4;
+    }
+    /* popover 非対応ブラウザ向けフォールバック(.open クラスで開閉) */
+    #layer-switch-panel:not(:is(:popover-open, .open)) {
+      display: none;
     }
 
     /* 都道府県パネル: タイトル直下に配置し、デフォルト折りたたみ。
@@ -838,29 +949,28 @@
   <button
     id="lang-switch-btn"
     type="button"
-    aria-haspopup="true"
-    aria-expanded="false"
+    popovertarget="lang-menu"
     data-i18n-aria="lang.buttonAria"
   >
     <span aria-hidden="true">🌐</span><span id="lang-switch-code">JA</span>
   </button>
-  <div id="lang-menu" role="menu">
-    <button class="lang-option" type="button" role="menuitem" data-lang="ja">日本語</button>
-    <button class="lang-option" type="button" role="menuitem" data-lang="en">English</button>
-    <button class="lang-option" type="button" role="menuitem" data-lang="zh-Hans">简体中文</button>
-    <button class="lang-option" type="button" role="menuitem" data-lang="ko">한국어</button>
+  <!-- 矢印キー操作を伴う role="menu" ではなく、ボタンを並べた popover として提供する -->
+  <div id="lang-menu" popover>
+    <button class="lang-option" type="button" data-lang="ja">日本語</button>
+    <button class="lang-option" type="button" data-lang="en">English</button>
+    <button class="lang-option" type="button" data-lang="zh-Hans">简体中文</button>
+    <button class="lang-option" type="button" data-lang="ko">한국어</button>
   </div>
 </div>
 
 <button
   id="layer-toggle-btn"
   type="button"
-  aria-expanded="false"
-  aria-controls="layer-switch-panel"
+  popovertarget="layer-switch-panel"
   data-i18n-aria="layers.toggleAria"
 ><span aria-hidden="true">🗺️</span></button>
 
-<div id="layer-switch-panel" class="panel">
+<div id="layer-switch-panel" class="panel" popover>
   <div class="section-title" data-i18n="layers.sectionArea">指定区域</div>
   <label class="switch-row">
     <input type="checkbox" id="toggle-gosetsu" checked />
@@ -1440,14 +1550,46 @@
     if (except !== "legend") {
       document.getElementById("legend-panel").classList.add("collapsed");
     }
-    if (except !== "layer") {
-      document.getElementById("layer-switch-panel").classList.remove("open");
-      document.getElementById("layer-toggle-btn").setAttribute("aria-expanded", "false");
+    if (except !== "layer") hideOverlay("layer-switch-panel");
+    if (except !== "lang") hideOverlay("lang-menu");
+  }
+
+  // ── popover(言語メニュー・モバイルのレイヤー切替) ─────────────────
+  // 対応ブラウザでは popovertarget 属性だけで開閉・外側タップ/Esc での自動クローズ・
+  // aria-expanded 相当の状態公開・フォーカス復帰をブラウザが行う。
+  // 非対応ブラウザ(Popover API 以前)では .open クラスによる従来の開閉にフォールバックする。
+  // Object.hasOwn は Safari 15.4 未満にないため使わない(非対応ブラウザ向けの判定自体が例外で止まるのを防ぐ)
+  const HAS_POPOVER = Object.prototype.hasOwnProperty.call(HTMLElement.prototype, "popover");
+  const OVERLAYS = {
+    "lang-menu": { btn: "lang-switch-btn", name: "lang" },
+    "layer-switch-panel": { btn: "layer-toggle-btn", name: "layer" },
+  };
+
+  function isOverlayOpen(id) {
+    const el = document.getElementById(id);
+    return HAS_POPOVER ? el.matches(":popover-open") : el.classList.contains("open");
+  }
+
+  function hideOverlay(id) {
+    const el = document.getElementById(id);
+    if (!isOverlayOpen(id)) return;
+    if (HAS_POPOVER) {
+      el.hidePopover();
+    } else {
+      el.classList.remove("open");
+      document.getElementById(OVERLAYS[id].btn).setAttribute("aria-expanded", "false");
     }
-    if (except !== "lang") {
-      document.getElementById("lang-menu").classList.remove("open");
-      document.getElementById("lang-switch-btn").setAttribute("aria-expanded", "false");
-    }
+  }
+
+  // 言語メニューはトップレイヤーに出るため、ボタン直下に来るよう表示直前に位置を決める
+  function positionLangMenu() {
+    const r = document.getElementById("lang-switch-btn").getBoundingClientRect();
+    const menu = document.getElementById("lang-menu");
+    menu.style.setProperty("--menu-top", `${Math.round(r.bottom + 6)}px`);
+    menu.style.setProperty(
+      "--menu-right",
+      `${Math.round(document.documentElement.clientWidth - r.right)}px`
+    );
   }
 
   // 地理院タイルの出典表記(MapLibreのAttributionControlはソース定義の
@@ -1506,66 +1648,71 @@
     btn.textContent = willExpand ? "▴" : "▾";
   });
 
-  document.getElementById("layer-toggle-btn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    const panel = document.getElementById("layer-switch-panel");
-    const btn = document.getElementById("layer-toggle-btn");
-    const willOpen = !panel.classList.contains("open");
-    if (willOpen) closeMobileOverlays("layer");
-    panel.classList.toggle("open", willOpen);
-    btn.setAttribute("aria-expanded", String(willOpen));
-  });
-
-  document.getElementById("lang-switch-btn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    const menu = document.getElementById("lang-menu");
-    const btn = document.getElementById("lang-switch-btn");
-    const willOpen = !menu.classList.contains("open");
-    if (willOpen) closeMobileOverlays("lang");
-    menu.classList.toggle("open", willOpen);
-    btn.setAttribute("aria-expanded", String(willOpen));
-  });
+  if (HAS_POPOVER) {
+    for (const [id, { name }] of Object.entries(OVERLAYS)) {
+      const el = document.getElementById(id);
+      el.addEventListener("beforetoggle", (e) => {
+        if (e.newState !== "open") return;
+        if (id === "lang-menu") positionLangMenu();
+        // モバイルでは他の開閉パネル(タイトル説明・都道府県・凡例)と重ならないよう閉じる。
+        // 他の popover 同士は popover="auto" の仕様で自動的に排他になる。
+        closeMobileOverlays(name);
+      });
+    }
+  } else {
+    // フォールバック: 従来どおりクリックで .open を切り替え、外側クリックで閉じる
+    for (const [id, { btn: btnId, name }] of Object.entries(OVERLAYS)) {
+      const el = document.getElementById(id);
+      const btn = document.getElementById(btnId);
+      btn.setAttribute("aria-expanded", "false");
+      btn.setAttribute("aria-controls", id);
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const willOpen = !el.classList.contains("open");
+        if (willOpen) {
+          if (id === "lang-menu") positionLangMenu();
+          closeMobileOverlays(name);
+        }
+        el.classList.toggle("open", willOpen);
+        btn.setAttribute("aria-expanded", String(willOpen));
+      });
+    }
+    document.addEventListener("click", (e) => {
+      for (const [id, { btn: btnId }] of Object.entries(OVERLAYS)) {
+        const el = document.getElementById(id);
+        if (!el.contains(e.target) && !document.getElementById(btnId).contains(e.target)) {
+          hideOverlay(id);
+        }
+      }
+    });
+  }
 
   document.querySelectorAll(".lang-option").forEach((btn) => {
     btn.addEventListener("click", () => {
       setLang(btn.dataset.lang);
-      document.getElementById("lang-menu").classList.remove("open");
-      document.getElementById("lang-switch-btn").setAttribute("aria-expanded", "false");
+      hideOverlay("lang-menu");
     });
   });
 
-  document.addEventListener("click", (e) => {
-    const layerPanel = document.getElementById("layer-switch-panel");
-    const layerBtn = document.getElementById("layer-toggle-btn");
-    if (
-      layerPanel.classList.contains("open") &&
-      !layerPanel.contains(e.target) &&
-      !layerBtn.contains(e.target)
-    ) {
-      layerPanel.classList.remove("open");
-      layerBtn.setAttribute("aria-expanded", "false");
-    }
-    const langMenu = document.getElementById("lang-menu");
-    const langBtn = document.getElementById("lang-switch-btn");
-    if (
-      langMenu.classList.contains("open") &&
-      !langMenu.contains(e.target) &&
-      !langBtn.contains(e.target)
-    ) {
-      langMenu.classList.remove("open");
-      langBtn.setAttribute("aria-expanded", "false");
-    }
-  });
-
   let resizeRafId = null;
+  let lastViewportWidth = document.documentElement.clientWidth;
   window.addEventListener("resize", () => {
     if (resizeRafId !== null) cancelAnimationFrame(resizeRafId);
     resizeRafId = requestAnimationFrame(() => {
       resizeRafId = null;
       syncTitleHeight();
       const nowMobile = isMobileView();
+      // 横幅が変わると表示位置がずれるため、開いている言語メニューを閉じる。
+      // (モバイルのアドレスバー出し入れなど高さだけの resize では閉じない)
+      const vw = document.documentElement.clientWidth;
+      if (vw !== lastViewportWidth) hideOverlay("lang-menu");
+      lastViewportWidth = vw;
       if (nowMobile && !wasMobile) {
         closeMobileOverlays();
+      } else if (!nowMobile && wasMobile) {
+        // モバイル用のレイヤー popover を開いたまま PC 幅になった場合は、
+        // トップレイヤーから降ろして通常の常時表示パネルに戻す
+        hideOverlay("layer-switch-panel");
       }
       wasMobile = nowMobile;
     });
@@ -1951,7 +2098,10 @@
       });
     }
 
-    fetchPrefData(gosetsuData);
+    // 集計は分割実行(内部で yield)。完了を待たずに凡例・出典の更新へ進む
+    fetchPrefData(gosetsuData).catch((err) =>
+      console.error("都道府県別集計に失敗しました:", err)
+    );
     updateLegend();
     updateMapAttribution();
 
@@ -2347,8 +2497,22 @@
     ];
   }
 
-  function fetchPrefData(geojson) {
+  // 長い処理の途中でメインスレッドを明け渡し、入力処理や描画を先に通す(INP 対策)。
+  // scheduler.yield() は継続処理を優先キューに戻すので、他タスクに割り込まれにくい。
+  // 非対応ブラウザ(Safari 等)は setTimeout(0) にフォールバックする。
+  function yieldToMain() {
+    if (globalThis.scheduler && "yield" in globalThis.scheduler) {
+      return globalThis.scheduler.yield();
+    }
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  // 都道府県別の集計と範囲(bbox)計算。4.5MB のポリゴン全頂点を走査するため、
+  // 一括で回すと数百 ms 級のロングタスクになり、読み込み直後の地図操作が固まる。
+  // 50ms ごとに yield して分割する。
+  async function fetchPrefData(geojson) {
     const feats = (geojson && geojson.features) || [];
+    let deadline = performance.now() + 50;
 
     // 都道府県ごとに { code -> hasTokubetsu, features[] } を集計
     const byPref = new Map();
@@ -2369,7 +2533,7 @@
       }
     }
 
-    prefBoundsIndex = new Map();
+    const bounds = new Map();
     const summary = [];
     for (const [pref, entry] of byPref.entries()) {
       const cityCount = entry.codes.size;
@@ -2383,8 +2547,15 @@
         tokubetsuCount,
         ratio: cityCount > 0 ? tokubetsuCount / cityCount : 0,
       });
-      prefBoundsIndex.set(pref, bboxOfFeatures(entry.features));
+      bounds.set(pref, bboxOfFeatures(entry.features));
+      // 都道府県単位(最大数千頂点)で区切って期限を確認する
+      if (performance.now() >= deadline) {
+        await yieldToMain();
+        deadline = performance.now() + 50;
+      }
     }
+    // 計算途中の不完全なインデックスを参照させないよう、完成後にまとめて差し替える
+    prefBoundsIndex = bounds;
 
     summary.sort((a, b) => b.cityCount - a.cityCount);
     prefSummaryCache = summary;

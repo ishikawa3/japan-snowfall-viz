@@ -59,6 +59,18 @@ Three.js(r160、MITライセンス)は CDN ではなく `web/vendor/three/` に�
 2D版(`index.html`)の MapLibre GL JS(v6.11.2、BSD-3-Clause)も同様に `web/vendor/maplibre-gl/` に同梱しています。
 v6 は ESM 専用配布のため、`index.html` の本体スクリプトは `type="module"` で import しています。
 
+## 表示速度・操作性のための Web 標準機能
+
+ライブラリを追加せず、ブラウザ標準の機能で次の改善を行っています(非対応ブラウザでは従来どおりに動作します)。
+
+| 項目 | 内容 |
+| --- | --- |
+| 読み込みの前倒し | 主要データ `gosetsu.geojson` を `<link rel="preload" as="fetch" fetchpriority="high">` で先読みし、MapLibre・Three.js は `modulepreload`。Service Worker のキャッシュ充填は `fetch(..., { priority: "low" })` で利用者の操作による取得を優先 |
+| ポップオーバー | 言語メニュー(2D)、モバイルのレイヤー切替(2D)・表示設定(3D)を Popover API(`popover` / `popovertarget`)で実装。外側タップ・Esc で閉じる処理やフォーカス復帰をブラウザに任せる。非対応ブラウザでは `.open` クラスでの開閉にフォールバック |
+| コンテナクエリ | 都道府県パネル(2D)・凡例(3D)は、画面幅ではなくパネル自身の幅に応じてレイアウトを切り替える |
+| ページ遷移アニメーション | 2D⇄3D の移動に cross-document view transitions を使用(タイトルパネルと切替ボタンをモーフィング、向きに応じてスライド)。`prefers-reduced-motion: reduce` では無効。非対応ブラウザでは通常の遷移 |
+| 操作の応答性(INP) | 都道府県別集計(2D)・観測点の都道府県判定(3D)を 50ms ごとに `scheduler.yield()`(非対応時は `setTimeout`)で分割。3D の高さスライダーは再描画を 1 フレーム 1 回にまとめる |
+
 ## PWA(インストール・オフライン対応)
 
 2D地図版・3Dビューの両方が PWA(Progressive Web App)として動作します。
