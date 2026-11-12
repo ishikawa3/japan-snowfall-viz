@@ -1390,6 +1390,9 @@ function selectStation(d) {
   if (prev) setBarColorFor(prev);
   setBarColorFor(d);
   updateMarker();
+  // モバイルでは設定パネル(トップレイヤーの popover)が詳細パネルの上に重なって
+  // 内容を隠すため、観測点を選んだら設定パネルを閉じて詳細を見せる
+  closeControlsPanel();
   showDetail(d);
   pushHash();
 }
@@ -1552,16 +1555,19 @@ if (HAS_POPOVER) {
     controlsToggleBtn.textContent = open ? "✕" : "⚙";
   });
 }
-// モバイル用 popover を開いたまま PC 幅になったら、トップレイヤーから降ろして常時表示パネルに戻す
-matchMedia("(min-width: 641px)").addEventListener("change", (e) => {
-  if (!e.matches) return;
+// モバイル用の設定パネルを閉じる(開いていなければ何もしない。PC 幅では常時表示なので影響なし)
+function closeControlsPanel() {
   if (HAS_POPOVER) {
     if (controlsEl.matches(":popover-open")) controlsEl.hidePopover();
-  } else {
+  } else if (controlsEl.classList.contains("open")) {
     controlsEl.classList.remove("open");
     controlsToggleBtn.setAttribute("aria-expanded", "false");
     controlsToggleBtn.textContent = "⚙";
   }
+}
+// モバイル用 popover を開いたまま PC 幅になったら、トップレイヤーから降ろして常時表示パネルに戻す
+matchMedia("(min-width: 641px)").addEventListener("change", (e) => {
+  if (e.matches) closeControlsPanel();
 });
 
 document.getElementById("share-btn").addEventListener("click", async () => {
