@@ -1558,7 +1558,8 @@
   // 対応ブラウザでは popovertarget 属性だけで開閉・外側タップ/Esc での自動クローズ・
   // aria-expanded 相当の状態公開・フォーカス復帰をブラウザが行う。
   // 非対応ブラウザ(Popover API 以前)では .open クラスによる従来の開閉にフォールバックする。
-  const HAS_POPOVER = Object.hasOwn(HTMLElement.prototype, "popover");
+  // Object.hasOwn は Safari 15.4 未満にないため使わない(非対応ブラウザ向けの判定自体が例外で止まるのを防ぐ)
+  const HAS_POPOVER = Object.prototype.hasOwnProperty.call(HTMLElement.prototype, "popover");
   const OVERLAYS = {
     "lang-menu": { btn: "lang-switch-btn", name: "lang" },
     "layer-switch-panel": { btn: "layer-toggle-btn", name: "layer" },
@@ -1668,7 +1669,10 @@
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const willOpen = !el.classList.contains("open");
-        if (willOpen) closeMobileOverlays(name);
+        if (willOpen) {
+          if (id === "lang-menu") positionLangMenu();
+          closeMobileOverlays(name);
+        }
         el.classList.toggle("open", willOpen);
         btn.setAttribute("aria-expanded", String(willOpen));
       });
@@ -1691,14 +1695,18 @@
   });
 
   let resizeRafId = null;
+  let lastViewportWidth = document.documentElement.clientWidth;
   window.addEventListener("resize", () => {
     if (resizeRafId !== null) cancelAnimationFrame(resizeRafId);
     resizeRafId = requestAnimationFrame(() => {
       resizeRafId = null;
       syncTitleHeight();
       const nowMobile = isMobileView();
-      // 表示位置がずれるため、リサイズ時は開いている言語メニューを閉じる
-      hideOverlay("lang-menu");
+      // 横幅が変わると表示位置がずれるため、開いている言語メニューを閉じる。
+      // (モバイルのアドレスバー出し入れなど高さだけの resize では閉じない)
+      const vw = document.documentElement.clientWidth;
+      if (vw !== lastViewportWidth) hideOverlay("lang-menu");
+      lastViewportWidth = vw;
       if (nowMobile && !wasMobile) {
         closeMobileOverlays();
       } else if (!nowMobile && wasMobile) {

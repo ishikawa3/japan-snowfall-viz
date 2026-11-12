@@ -140,10 +140,11 @@
     left: 12px;
     padding: 14px 16px;
     max-width: 320px;
-    /* ローディング表示(z-index:10)より手前に出す。2D からの遷移でモーフィングした
-       タイトルが直後にローディングの下へ隠れないようにし、読み込み中も 2D へ戻れるようにする */
-    z-index: 11;
   }
+  /* 読み込み中だけローディング表示(z-index:10)より手前に出す。2D からの遷移で
+     モーフィングしたタイトルが直後にローディングの下へ隠れないようにし、読み込み中も
+     2D へ戻れるようにする。読み込み後は通常の重なり順に戻し、ツールチップ(z-index:5)を隠さない */
+  body:has(#loading:not(.hide)) #title-panel { z-index: 11; }
   #title-panel h1 {
     margin: 0;
     font-size: 16px;
@@ -1536,7 +1537,8 @@ document.getElementById("lang-select").addEventListener("change", (e) => {
 // Popover API 非対応ブラウザでは .open クラスの切り替えにフォールバックする。
 const controlsToggleBtn = document.getElementById("controls-toggle");
 const controlsEl = document.getElementById("controls");
-const HAS_POPOVER = Object.hasOwn(HTMLElement.prototype, "popover");
+// Object.hasOwn は Safari 15.4 未満にないため使わない(非対応ブラウザ向けの判定自体が例外で止まるのを防ぐ)
+const HAS_POPOVER = Object.prototype.hasOwnProperty.call(HTMLElement.prototype, "popover");
 if (HAS_POPOVER) {
   controlsEl.addEventListener("toggle", (e) => {
     controlsToggleBtn.textContent = e.newState === "open" ? "✕" : "⚙";
